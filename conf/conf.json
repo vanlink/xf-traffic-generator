@@ -1,0 +1,7 @@
+{
+    "cores-process": [10, 11, 12, 13],
+    "cores-dispatch": [18],
+    "interfaces": [
+        "0000:82:00.0"
+    ]
+}
