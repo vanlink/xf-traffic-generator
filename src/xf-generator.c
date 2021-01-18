@@ -46,6 +46,12 @@
 #include "xf-sharedmem.h"
 #include "xf-session.h"
 
+typedef struct _DPDK_MBUF_PRIV_TAG {
+    struct netif *pnetif;
+} MBUF_PRIV_T;
+
+#define MAX_RCV_PKTS 32
+
 static char unique_id[64] = {0};
 static char conf_file_path[128] = {0};
 
@@ -53,6 +59,9 @@ static DKFW_CONFIG dkfw_config;
 
 static uint64_t tsc_per_sec;
 static uint64_t *g_elapsed_ms;
+
+static struct rte_mempool *pktmbuf_lwip2dpdk = NULL;
+static struct rte_mempool *pktmbuf_arp_clone = NULL;
 
 static const char short_options[] = "u:c:";
 static const struct option long_options[] = {
@@ -92,9 +101,6 @@ static int cmd_parse_args(int argc, char **argv)
 u32_t sys_now(void){
     return *g_elapsed_ms;
 }
-
-static struct rte_mempool *pktmbuf_lwip2dpdk = NULL;
-static struct rte_mempool *pktmbuf_arp_clone = NULL;
 
 static int init_pktmbuf_pool(void)
 {
@@ -172,6 +178,237 @@ static int init_lwip_json(cJSON *json_root, void *stats_mem)
     return 0;
 }
 
+static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m)
+{
+    int dpdklen;
+    char *dpdkdat;
+    err_t ret = 0;
+    struct pbuf *p;
+    MBUF_PRIV_T *priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
+
+    dpdklen = rte_pktmbuf_pkt_len(m);
+    dpdkdat = rte_pktmbuf_mtod(m, char *);
+
+    p = pbuf_alloc(PBUF_RAW, dpdklen, PBUF_POOL);
+    if(!p) {
+         ret = -1;
+        goto exit;
+    }
+    p->payload = dpdkdat;
+
+    ret = priv->pnetif->input(p, priv->pnetif);
+    if(ret != ERR_OK){
+        ret = -1;
+         pbuf_free(p);
+    }
+
+exit:
+
+    rte_pktmbuf_free(m);
+
+    return ret;
+}
+
+
+static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
+{
+    struct rte_net_hdr_lens hdr_lens = {0, 0, 0, 0, 0, 0, 0};
+    char *dpdkdat;
+    uint32_t ptype;
+    uint16_t port_humam;
+    struct rte_ipv4_hdr *ipv4 = NULL;
+    struct rte_ipv6_hdr *ipv6 = NULL;
+    struct rte_tcp_hdr *tcp = NULL;
+    struct rte_udp_hdr *udp = NULL;
+    struct rte_icmp_hdr *icmp = NULL;
+    struct rte_arp_hdr *arp = NULL;
+    MBUF_PRIV_T *priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
+
+    (void)ipv4;
+    (void)ipv6;
+    (void)udp;
+    (void)icmp;
+
+    dpdkdat = rte_pktmbuf_mtod(m, char *);
+
+    ptype = rte_net_get_ptype(m, &hdr_lens, RTE_PTYPE_ALL_MASK);
+
+    if(unlikely((ptype & RTE_PTYPE_L2_MASK) != RTE_PTYPE_L2_ETHER)){
+        return -1;
+    }
+
+    if(unlikely(((struct rte_ether_hdr *)dpdkdat)->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))){
+        arp = (struct rte_arp_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
+        priv->pnetif = lwip_get_netif_from_ipv4(arp->arp_data.arp_tip);
+        if(!priv->pnetif){
+            return -1;
+        }
+        if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)){
+            *dst_core = 0;
+        }else if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REPLY)){
+            *dst_core = -1;
+        }else{
+            return -1;
+        }
+
+        return 0;
+    }
+
+    if(likely((ptype & RTE_PTYPE_L3_MASK) == RTE_PTYPE_L3_IPV4)){
+        ipv4 = (struct rte_ipv4_hdr *)(dpdkdat + hdr_lens.l2_len);
+        priv->pnetif = lwip_get_netif_from_ipv4(ipv4->dst_addr);
+        if(!priv->pnetif){
+            return -1;
+        }
+    }else if((ptype & RTE_PTYPE_L3_MASK) == RTE_PTYPE_L3_IPV6){
+        ipv6 = (struct rte_ipv6_hdr *)(dpdkdat + hdr_lens.l2_len);
+    }else{
+        return -1;
+    }
+
+    if(likely((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_TCP)){
+        tcp = (struct rte_tcp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
+        port_humam = rte_bswap16(tcp->dst_port);
+        if(LWIP_NETIF_LPORT_TCP_IS_LISTEN(priv->pnetif, port_humam)){
+            // dst to listen port, hash base on src port
+            *dst_core = rte_bswap16(tcp->src_port) % g_pkt_process_core_num;
+        }else{
+            // dst to client port, hash base on dst port
+            *dst_core = port_humam % g_pkt_process_core_num;
+        }
+    }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_UDP){
+        udp = (struct rte_udp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
+    }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_ICMP){
+        icmp = (struct rte_icmp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
+    }else{
+        return -1;
+    }
+
+    return 0;
+}
+
+static int dispatch_loop(int seq)
+{
+    int i, cind;
+    struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
+    struct rte_mbuf *pkt, *clone;
+    int rx_num, pktind;
+    int dst_core;
+    MBUF_PRIV_T *priv_src;
+    MBUF_PRIV_T *priv_dst;
+
+    printf("dispatch loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
+
+    while(1){
+        for(i=0;i<g_dkfw_interfaces_num;i++){
+            rx_num = dkfw_rcv_pkt_from_interface(i, seq, pkts_burst, MAX_RCV_PKTS);
+            if(rx_num){
+                for(pktind=0;pktind<rx_num;pktind++){
+                    pkt = pkts_burst[pktind];
+
+                    if(get_app_core_seq(pkt, &dst_core) < 0){
+                        rte_pktmbuf_free(pkt);
+                    }else{
+                        if(likely(dst_core >= 0)){
+                            if(unlikely(dkfw_send_pkt_to_process_core_q(dst_core, seq, pkt) < 0)){
+                                rte_pktmbuf_free(pkt);
+                            }
+                        }else{
+                            priv_src = (MBUF_PRIV_T *)rte_mbuf_to_priv(pkt);
+                            for(cind=0;cind<g_pkt_process_core_num;cind++){
+                                clone = rte_pktmbuf_clone(pkt, pktmbuf_arp_clone);
+                                if (!clone){
+                                    continue;
+                                }
+                                priv_dst = (MBUF_PRIV_T *)rte_mbuf_to_priv(clone);
+                                memcpy(priv_dst, priv_src, sizeof(MBUF_PRIV_T));
+                                if(unlikely(dkfw_send_pkt_to_process_core_q(cind, seq, clone) < 0)){
+                                    rte_pktmbuf_free(clone);
+                                }
+                            }
+                            rte_pktmbuf_free(pkt);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+static int packet_loop(int seq)
+{
+    int i;
+    uint64_t elapsed_ms_last = 0;
+    uint64_t time_0;
+    struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
+    struct rte_mbuf *pkt;
+    int rx_num, pktind;
+
+    printf("packet loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
+
+    time_0 = rte_rdtsc();
+
+    *g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
+
+    lwip_init_per_core(seq);
+
+    while(1){
+        time_0 = rte_rdtsc();
+
+        if(seq == 0){
+            *g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
+        }
+
+        if(*g_elapsed_ms != elapsed_ms_last){
+
+            elapsed_ms_last = *g_elapsed_ms;
+
+            sys_check_timeouts(*g_elapsed_ms);
+        }
+
+        for(i=0;i<g_pkt_distribute_core_num;i++){
+            rx_num = dkfw_rcv_pkt_from_process_core_q(seq, i, pkts_burst, MAX_RCV_PKTS);
+            if(unlikely(!rx_num)){
+                continue;
+            }
+            for(pktind=0;pktind<rx_num;pktind++){
+                pkt = pkts_burst[pktind];
+
+                pkt_dpdk_to_lwip_real(pkt);
+            }
+        }
+    }
+
+    return 0;
+}
+
+static int main_loop(__rte_unused void *dummy)
+{
+    int i;
+    int lcore_id = rte_lcore_id();
+    CORE_CONFIG *core;
+
+    for(i=0;i<dkfw_config.cores_pkt_process_num;i++){
+        core = &dkfw_config.cores_pkt_process[i];
+        if(core->core_ind == lcore_id){
+            packet_loop(core->core_seq);
+            return 0;
+        }
+    }
+
+    for(i=0;i<dkfw_config.cores_pkt_dispatch_num;i++){
+        core = &dkfw_config.cores_pkt_dispatch[i];
+        if(core->core_ind == lcore_id){
+            dispatch_loop(core->core_seq);
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int i;
@@ -182,6 +419,7 @@ int main(int argc, char **argv)
     cJSON *json_item;
     cJSON *json_array_item;
     SHARED_MEM_T *sm;
+    unsigned lcore_id = 0;
 
     if(!json_str){
         printf("no mem.\n");
@@ -290,6 +528,16 @@ int main(int argc, char **argv)
     }
 
     printf("config done.\n");
+
+    *g_elapsed_ms = rte_rdtsc() * 1000ULL / tsc_per_sec;
+
+    rte_eal_mp_remote_launch(main_loop, NULL, CALL_MASTER);
+
+    RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+        if (rte_eal_wait_lcore(lcore_id) < 0) {
+           break;
+        }
+    }
 
 err:
     if(fp){

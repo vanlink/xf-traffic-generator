@@ -12,6 +12,8 @@ typedef struct _session_info_t {
 } SESSION;
 
 extern int init_sessions(uint64_t cnt);
+extern SESSION *session_get(void);
+extern void session_free(SESSION *sess);
 
 #endif
 

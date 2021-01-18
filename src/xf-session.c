@@ -53,3 +53,20 @@ int init_sessions(uint64_t cnt)
     return 0;
 }
 
+SESSION *session_get(void)
+{
+    SESSION *sess = NULL;
+    if(rte_mempool_get(sessions, (void **)sess) < 0) {
+        return NULL;
+    }
+
+    bzero(sess, sizeof(SESSION));
+
+    return sess;
+}
+
+void session_free(SESSION *sess)
+{
+    rte_mempool_put(sessions, sess);
+}
+
