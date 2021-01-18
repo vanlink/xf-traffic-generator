@@ -45,6 +45,7 @@
 
 #include "xf-sharedmem.h"
 #include "xf-session.h"
+#include "xf-network.h"
 
 typedef struct _DPDK_MBUF_PRIV_TAG {
     struct netif *pnetif;
@@ -60,7 +61,6 @@ static DKFW_CONFIG dkfw_config;
 static uint64_t tsc_per_sec;
 static uint64_t *g_elapsed_ms;
 
-static struct rte_mempool *pktmbuf_lwip2dpdk = NULL;
 static struct rte_mempool *pktmbuf_arp_clone = NULL;
 
 static const char short_options[] = "u:c:";
@@ -104,12 +104,6 @@ u32_t sys_now(void){
 
 static int init_pktmbuf_pool(void)
 {
-    pktmbuf_lwip2dpdk = rte_pktmbuf_pool_create("mbuflwip2dpdk", 65534, 512, 0, RTE_MBUF_DEFAULT_BUF_SIZE, SOCKET_ID_ANY);
-    if(!pktmbuf_lwip2dpdk){
-        printf("mbuf pktmbuf_lwip2dpdk err.\n");
-        return -1;
-    }
-
     pktmbuf_arp_clone = rte_pktmbuf_pool_create("mbufarpcolne", 8191, 128, RTE_MBUF_PRIV_ALIGN * 4, RTE_MBUF_DEFAULT_BUF_SIZE, SOCKET_ID_ANY);
     if(!pktmbuf_arp_clone){
         printf("mbuf pktmbuf_arp_clone err.\n");
@@ -523,6 +517,11 @@ int main(int argc, char **argv)
     init_lwip_json(json_root, &sm->stats_lwip);
 
     if(init_sessions(cJSON_GetObjectItem(json_root, "sessions")->valueint) < 0){
+        ret = -1;
+        goto err;
+    }
+
+    if(init_networks(json_root) < 0){
         ret = -1;
         goto err;
     }

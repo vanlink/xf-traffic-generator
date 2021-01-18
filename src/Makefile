@@ -12,7 +12,7 @@ endif
 all: xf-generator
 
 xf-generator:
-	gcc -g ${OPTIMIZE} ${DEPS} ${INCLUDE} ${LIBS} xf-generator.c xf-session.c ${SLIBS} -o xf-generator
+	gcc -g ${OPTIMIZE} ${DEPS} ${INCLUDE} ${LIBS} xf-generator.c xf-session.c xf-tools.c xf-network.c ${SLIBS} -o xf-generator
 
 clean:
 	rm -f xf-generator
