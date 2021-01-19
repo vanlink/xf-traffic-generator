@@ -342,6 +342,7 @@ static int packet_loop(int seq)
     struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
     struct rte_mbuf *pkt;
     int rx_num, pktind;
+    STREAM *stream;
 
     printf("packet loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
 
@@ -359,10 +360,15 @@ static int packet_loop(int seq)
         }
 
         if(*g_elapsed_ms != elapsed_ms_last){
-
             elapsed_ms_last = *g_elapsed_ms;
-
             sys_check_timeouts(*g_elapsed_ms);
+        }
+
+        for(i=0;i<g_stream_cnt;i++){
+            stream = g_streams[i];
+            if(stream->send){
+                stream->send(stream, seq, time_0);
+            }
         }
 
         for(i=0;i<g_pkt_distribute_core_num;i++){

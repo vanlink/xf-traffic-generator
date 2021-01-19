@@ -40,28 +40,10 @@
 #include "xf-tools.h"
 #include "xf-stream.h"
 #include "xf-generator.h"
+#include "xf-protocol-http.h"
 
-#define STREAM_TYPE_HTTPCLIENT 0
-#define STREAM_TYPE_HTTPSERVER 1
-
-#define STREAM_CNT_MAX 32
-
-typedef struct _STREAM_t {
-    int type;
-
-    int local_address_ind;
-    int remote_address_ind;
-    int http_message_ind;
-
-    uint64_t cps;  // conn per second
-    uint64_t rpc;  // req per conn
-    uint64_t ipr;  // interval per(between) req
-
-    DKFW_CPS dkfw_cps[LWIP_CORES_MAX];
-} STREAM;
-
-static int g_stream_cnt = 0;
-static STREAM *g_streams[STREAM_CNT_MAX];
+int g_stream_cnt = 0;
+STREAM *g_streams[STREAM_CNT_MAX];
 
 static int init_stream_http_client(cJSON *json_root, STREAM *stream)
 {
@@ -83,6 +65,8 @@ static int init_stream_http_client(cJSON *json_root, STREAM *stream)
         }
         dkfw_cps_create(&stream->dkfw_cps[i], cps, tsc_per_sec);
     }
+
+    stream->send = protocol_http_send;
 
     return 0;
 }
