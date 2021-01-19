@@ -77,5 +77,23 @@
                 { "path":"/rsp.txt"}
             ]
         }
+    ],
+    
+    "streams":[
+        {
+            "type":"httpclient",
+            "local_address_ind":0,
+            "remote_address_ind":0,
+            "http_message_ind":0,
+            "cps":100,
+            "rpc":1,
+            "ipr":0
+        },
+        {
+            "type":"httpserver",
+            "ip":"192.168.1.100",
+            "port":80,
+            "http_message_ind":1
+        }
     ]
 }
