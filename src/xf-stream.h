@@ -16,6 +16,8 @@ typedef struct _session_info_t SESSION;
 
 typedef int (*STREAM_SEND_FUNC)(STREAM *, int, uint64_t);
 typedef int (*STREAM_SESSION_NEW_FUNC)(SESSION *, STREAM *);
+typedef int (*STREAM_CONNECTED_FUNC)(SESSION *, STREAM *);
+typedef int (*STREAM_SENT_FUNC)(SESSION *, STREAM *, uint16_t);
 
 typedef struct _STREAM_t {
     int type;
@@ -34,6 +36,8 @@ typedef struct _STREAM_t {
 
     STREAM_SEND_FUNC send;
     STREAM_SESSION_NEW_FUNC session_new;
+    STREAM_CONNECTED_FUNC connected;
+    STREAM_SENT_FUNC sent;
 } STREAM;
 
 extern int g_stream_cnt;

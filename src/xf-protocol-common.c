@@ -22,6 +22,31 @@
 #include "xf-protocol-common.h"
 #include "xf-address.h"
 
+// err always OK
+static inline err_t cb_connected(void *arg, struct altcp_pcb *tpcb, err_t err)
+{
+    SESSION *session = (SESSION *)arg;
+    STREAM *stream = session->stream;
+
+    if(stream->connected){
+        return stream->connected(session, stream);
+    }
+
+    return ERR_OK;
+}
+
+static err_t cb_sent(void *arg, struct altcp_pcb *tpcb, u16_t len)
+{
+    SESSION *session = (SESSION *)arg;
+    STREAM *stream = session->stream;
+
+    if(stream->sent){
+        return stream->sent(session, stream, len);
+    }
+
+    return ERR_OK;
+}
+
 static int protocol_common_send_one(STREAM *stream, int core)
 {
     SESSION *session = session_get();
@@ -53,13 +78,13 @@ static int protocol_common_send_one(STREAM *stream, int core)
     }else{
         pcb = (struct tcp_pcb *)newpcb->state;
     }
-/*
+
     altcp_arg(newpcb, session);
-    altcp_sent(newpcb, cb_httpclient_sent);
-    altcp_recv(newpcb, cb_httpclient_recv);
+    altcp_sent(newpcb, cb_sent);
+    // altcp_recv(newpcb, cb_httpclient_recv);
     altcp_poll(newpcb, NULL, 2U);
-    altcp_err(newpcb, cb_httpclient_err);
-*/
+    // altcp_err(newpcb, cb_httpclient_err);
+
     if(stream->session_new){
         stream->session_new(session, stream);
     }
@@ -70,8 +95,7 @@ static int protocol_common_send_one(STREAM *stream, int core)
     for(i=0;i<2;i++){
         net_if = local_address_get(stream->local_address_ind, core, force_next);
         tcp_bind_netif(pcb, net_if);
-        // err = altcp_connect(newpcb, remote_addr, port, cb_httpclient_connected);
-        err = altcp_connect(newpcb, remote_addr, port, NULL);
+        err = altcp_connect(newpcb, remote_addr, port, cb_connected);
         if (err == ERR_OK) {
             return ret;
         }
