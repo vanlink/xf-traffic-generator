@@ -49,7 +49,6 @@
     
     "local_addresses":[
         {
-            "ind":0,
             "type":"port_rr",
             "addresses":[
                 { "start":"192.168.1.1", "end":"192.168.1.10" }
@@ -59,9 +58,23 @@
     
     "remote_addresses":[
         {
-            "ind":0,
             "addresses":[
                 { "start":"192.168.1.1", "end":"192.168.1.10", "port":80, "weight":1 }
+            ]
+        }
+    ],
+    
+    "http_messages":[
+        {
+            "messages":[
+                { "path":"/req.txt"},
+                { "path":"/req.txt"}
+            ]
+        },
+        {
+            "messages":[
+                { "path":"/rsp.txt"},
+                { "path":"/rsp.txt"}
             ]
         }
     ]

@@ -58,7 +58,6 @@ typedef struct _ADDRESS_LOCAL_ONE_t {
 } ADDRESS_LOCAL_ONE;
 
 typedef struct _ADDRESS_LOCAL_t {
-    int ind;
     int type;
     int is_ipv6;
     ADDRESS_LOCAL_ONE addresses[LWIP_CORES_MAX];
@@ -74,7 +73,6 @@ typedef struct _ADDRESS_REMOTE_ONE_t {
 } ADDRESS_REMOTE_ONE;
 
 typedef struct _ADDRESS_REMOTE_t {
-    int ind;
     int is_ipv6;
     ADDRESS_REMOTE_ONE addresses[LWIP_CORES_MAX];
 } ADDRESS_REMOTE;
@@ -105,7 +103,6 @@ int init_addresses(cJSON *json_root)
             return -1;
         }
 
-        local_address->ind = cJSON_GetObjectItem(json_array_item, "ind")->valueint;
         str = cJSON_GetObjectItem(json_array_item, "type")->valuestring;
         if(strstr(str, "ip")){
             local_address->type = LOCAL_ADDRESS_TYPE_IP_RR;
@@ -146,7 +143,6 @@ int init_addresses(cJSON *json_root)
             return -1;
         }
 
-        remote_address->ind = cJSON_GetObjectItem(json_array_item, "ind")->valueint;
         for(i=0;i<g_lwip_core_cnt;i++){
             remote_address_one = &remote_address->addresses[i];
             cJSON_ArrayForEach(json_address_one, cJSON_GetObjectItem(json_array_item, "addresses")){
