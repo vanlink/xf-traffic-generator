@@ -13,10 +13,20 @@
 #include "xf-tools.h"
 #include "xf-stream.h"
 #include "xf-protocol-http.h"
+#include "xf-session.h"
 
 static int protocol_http_send_one(STREAM *stream, int core)
 {
-    return 0;
+    int ret = 0;
+    SESSION *session = session_get();
+
+errexit:
+
+    if(session){
+        session_free(session);
+    }
+
+    return ret;
 }
 
 int protocol_http_send(STREAM *stream, int core, uint64_t tsc)
