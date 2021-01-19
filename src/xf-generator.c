@@ -48,6 +48,7 @@
 #include "xf-network.h"
 #include "xf-address.h"
 #include "xf-protocol-http-msg.h"
+#include "xf-stream.h"
 
 typedef struct _DPDK_MBUF_PRIV_TAG {
     struct netif *pnetif;
@@ -60,8 +61,8 @@ static char conf_file_path[128] = {0};
 
 static DKFW_CONFIG dkfw_config;
 
-static uint64_t tsc_per_sec;
-static uint64_t *g_elapsed_ms;
+uint64_t tsc_per_sec;
+uint64_t *g_elapsed_ms;
 
 static struct rte_mempool *pktmbuf_arp_clone = NULL;
 
@@ -534,6 +535,11 @@ int main(int argc, char **argv)
     }
 
     if(init_protocol_http_msg(json_root) < 0){
+        ret = -1;
+        goto err;
+    }
+
+    if(init_streams(json_root) < 0){
         ret = -1;
         goto err;
     }
