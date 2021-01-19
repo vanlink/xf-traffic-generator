@@ -49,6 +49,7 @@
 #include "xf-address.h"
 #include "xf-protocol-http-msg.h"
 #include "xf-stream.h"
+#include "xf-protocol-common.h"
 
 typedef struct _DPDK_MBUF_PRIV_TAG {
     struct netif *pnetif;
@@ -367,7 +368,7 @@ static int packet_loop(int seq)
         for(i=0;i<g_stream_cnt;i++){
             stream = g_streams[i];
             if(stream->send){
-                stream->send(stream, seq, time_0);
+                protocol_common_send(stream, seq, time_0);
             }
         }
 

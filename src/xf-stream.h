@@ -4,6 +4,7 @@
 #include "cjson/cJSON.h"
 #include "dkfw_cps.h"
 #include "lwip/opt.h"
+#include "xf-session.h"
 
 #define STREAM_CNT_MAX 32
 
@@ -11,8 +12,10 @@
 #define STREAM_TYPE_HTTPSERVER 1
 
 typedef struct _STREAM_t STREAM;
+typedef struct _session_info_t SESSION;
 
 typedef int (*STREAM_SEND_FUNC)(STREAM *, int, uint64_t);
+typedef int (*STREAM_SESSION_NEW_FUNC)(SESSION *, STREAM *);
 
 typedef struct _STREAM_t {
     int type;
@@ -30,6 +33,7 @@ typedef struct _STREAM_t {
     DKFW_CPS dkfw_cps[LWIP_CORES_MAX];
 
     STREAM_SEND_FUNC send;
+    STREAM_SESSION_NEW_FUNC session_new;
 } STREAM;
 
 extern int g_stream_cnt;

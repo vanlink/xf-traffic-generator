@@ -9,7 +9,7 @@ else
 OPTIMIZE=-O2
 endif
 
-SRC=xf-generator.c xf-session.c xf-stream.c xf-tools.c xf-network.c xf-address.c xf-protocol-http-msg.c xf-protocol-http.c
+SRC=xf-generator.c xf-session.c xf-stream.c xf-tools.c xf-network.c xf-address.c xf-protocol-http-msg.c xf-protocol-http.c xf-protocol-common.c
 
 all: xf-generator
 

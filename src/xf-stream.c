@@ -39,42 +39,11 @@
 
 #include "xf-tools.h"
 #include "xf-stream.h"
-#include "xf-generator.h"
+#include "xf-protocol-common.h"
 #include "xf-protocol-http.h"
 
 int g_stream_cnt = 0;
 STREAM *g_streams[STREAM_CNT_MAX];
-
-static int init_stream_http_client(cJSON *json_root, STREAM *stream)
-{
-    int i;
-    uint64_t cps;
-
-    stream->local_address_ind = cJSON_GetObjectItem(json_root, "local_address_ind")->valueint;
-    stream->remote_address_ind = cJSON_GetObjectItem(json_root, "remote_address_ind")->valueint;
-    stream->http_message_ind = cJSON_GetObjectItem(json_root, "http_message_ind")->valueint;
-
-    stream->cps = cJSON_GetObjectItem(json_root, "cps")->valueint;
-    stream->rpc = cJSON_GetObjectItem(json_root, "rpc")->valueint;
-    stream->ipr = cJSON_GetObjectItem(json_root, "ipr")->valueint;
-
-    for(i=0;i<g_lwip_core_cnt;i++){
-        cps = stream->cps / g_lwip_core_cnt;
-        if(i < (int)(stream->cps % g_lwip_core_cnt)){
-            cps++;
-        }
-        dkfw_cps_create(&stream->dkfw_cps[i], cps, tsc_per_sec);
-    }
-
-    stream->send = protocol_http_send;
-
-    return 0;
-}
-
-static int init_stream_http_server(cJSON *json_root, STREAM *stream)
-{
-    return 0;
-}
 
 int init_streams(cJSON *json_root)
 {
