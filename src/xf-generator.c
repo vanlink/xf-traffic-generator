@@ -46,6 +46,7 @@
 #include "xf-sharedmem.h"
 #include "xf-session.h"
 #include "xf-network.h"
+#include "xf-address.h"
 
 typedef struct _DPDK_MBUF_PRIV_TAG {
     struct netif *pnetif;
@@ -522,6 +523,11 @@ int main(int argc, char **argv)
     }
 
     if(init_networks(json_root) < 0){
+        ret = -1;
+        goto err;
+    }
+
+    if(init_addresses(json_root) < 0){
         ret = -1;
         goto err;
     }
