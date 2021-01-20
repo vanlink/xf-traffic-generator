@@ -45,7 +45,7 @@ static int http_close_session(SESSION *session, struct altcp_pcb *pcb, int abort
             altcp_abort(pcb);
         }else{
             if (altcp_close(pcb) != ERR_OK) {
-              altcp_abort(pcb);
+                altcp_abort(pcb);
             }
         }
     }

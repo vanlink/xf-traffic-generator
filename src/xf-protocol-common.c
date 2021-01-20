@@ -119,13 +119,18 @@ static int protocol_common_send_one(STREAM *stream, int core)
     int port;
     int i, force_next;
 
+    if(unlikely(!session)){
+        ret = -1;
+        goto exit;
+    }
+
     if(stream->is_tls){
         newpcb = altcp_tls_alloc(NULL, IPADDR_TYPE_V4);
     }else{
         newpcb = altcp_new(NULL);
     }
     
-    if(!newpcb){
+    if(unlikely(!newpcb)){
         ret = -1;
         goto exit;
     }
@@ -142,7 +147,7 @@ static int protocol_common_send_one(STREAM *stream, int core)
     altcp_arg(newpcb, session);
     altcp_sent(newpcb, cb_sent);
     altcp_recv(newpcb, cb_recv);
-    altcp_poll(newpcb, NULL, 2U);
+    altcp_poll(newpcb, NULL, 10U);
     altcp_err(newpcb, cb_err);
 
     if(stream->stream_session_new){
@@ -172,7 +177,15 @@ static int protocol_common_send_one(STREAM *stream, int core)
 exit:
 
     if(newpcb){
+        altcp_sent(newpcb, NULL);
+        altcp_recv(newpcb, NULL);
+        altcp_err(newpcb, NULL);
+
         altcp_abort(newpcb);
+    }
+
+    if(session){
+        session_free(session);
     }
 
     return ret;
