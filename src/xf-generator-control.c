@@ -63,6 +63,9 @@ static int do_stat(void)
     cJSON *json_root;
     char *str;
     char buff[64];
+    cJSON *json_array;
+    int i;
+    DKFW_PROFILE *profiler;
     
     sm = (SHARED_MEM_T *)dkfw_global_sharemem_get();
     if(!sm){
@@ -79,6 +82,20 @@ static int do_stat(void)
     
     cJSON_AddItemToObject(json_root, "lwip", dkfw_stats_to_json(&sm->stats_lwip));
     cJSON_AddItemToObject(json_root, "generator", dkfw_stats_to_json(&sm->stats_generator));
+
+    json_array = cJSON_CreateArray();
+    for(i=0;i<sm->pkt_core_cnt;i++){
+        profiler = &sm->profile_pkt[i];
+        cJSON_AddItemToArray(json_array, dkfw_profile_to_json(profiler));
+    }
+    cJSON_AddItemToObject(json_root, "profile_pkt", json_array);
+
+    json_array = cJSON_CreateArray();
+    for(i=0;i<sm->dispatch_core_cnt;i++){
+        profiler = &sm->profile_dispatch[i];
+        cJSON_AddItemToArray(json_array, dkfw_profile_to_json(profiler));
+    }
+    cJSON_AddItemToObject(json_root, "profile_dispatch", json_array);
 
     str = cJSON_Print(json_root);
     
