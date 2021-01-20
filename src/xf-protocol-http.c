@@ -57,7 +57,6 @@ static int http_close_session(SESSION *session, struct altcp_pcb *pcb, int abort
 
 static int llhttp_on_request_complete(llhttp_t *llhttp)
 {
-    printf("llhttp_on_request_complete\n");
     return HPE_OK;
 }
 
@@ -67,66 +66,68 @@ static int llhttp_on_response_complete(llhttp_t *llhttp)
     STREAM *stream = session->stream;
     struct altcp_pcb *pcb = (struct altcp_pcb *)session->pcb;
 
-    tcp_output(pcb);
+    session->response_ok = 1;
 
-    http_close_session(session, pcb, stream->close_with_rst);
+    if(session->proto_state == HTTP_STATE_RSP){
+        altcp_output(pcb);
+        http_close_session(session, pcb, stream->close_with_rst);
+    }
 
     return HPE_OK;
+}
+
+static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
+{
+    uint32_t room = altcp_sndbuf(pcb);
+    uint32_t send_cnt;
+    err_t err;
+
+    send_cnt = RTE_MIN(room, session->msg_len);
+    if(send_cnt){
+        err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+        if (err !=  ERR_OK) {
+            return -1;
+        }
+        session->msg_len -= send_cnt;
+        if(!session->msg_len){
+            session->proto_state = HTTP_STATE_RSP;
+            // server responsed early.
+            if(session->response_ok){
+                altcp_output(pcb);
+                http_close_session(session, pcb, stream->close_with_rst);
+            }
+        }
+    }
+
+    return 0;
 }
 
 static int protocol_http_client_connecned(SESSION *session, STREAM *stream, void *pcb)
 {
     int msg_ind = session->msg_ind;
-    uint32_t room = altcp_sndbuf(pcb);
-    uint32_t send_cnt;
-    err_t err;
 
     session->proto_state = HTTP_STATE_REQ;
+    session->response_ok = 0;
     session->msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len);
     session->msg_ind = msg_ind;
 
-    send_cnt = RTE_MIN(room, session->msg_len);
-    if(send_cnt){
-        err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
-        if (err !=  ERR_OK) {
-            return -1;
-        }
-        session->msg_len -= send_cnt;
-        if(!session->msg_len){
-            session->proto_state = HTTP_STATE_RSP;
-        }
-    }
-
-    return 0;
+    return http_client_send_data(session, stream, pcb);
 }
 
 static int protocol_http_client_sent(SESSION *session, STREAM *stream, void *pcb, uint16_t sent_len)
 {
-    uint32_t room = altcp_sndbuf(pcb);
-    uint32_t send_cnt;
-    err_t err;
-
     if(session->proto_state != HTTP_STATE_REQ){
         return 0;
     }
 
-    send_cnt = RTE_MIN(room, session->msg_len);
-    if(send_cnt){
-        err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
-        if (err !=  ERR_OK) {
-            return -1;
-        }
-        session->msg_len -= send_cnt;
-        if(!session->msg_len){
-            session->proto_state = HTTP_STATE_RSP;
-        }
-    }
-
-    return 0;
+    return http_client_send_data(session, stream, pcb);
 }
 
 static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, void *pcb)
 {
+    altcp_output(pcb);
+    http_close_session(session, pcb, stream->close_with_rst);
+
     return 0;
 }
 
@@ -141,6 +142,7 @@ static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb
 
 static int protocol_http_client_err(SESSION *session, STREAM *stream)
 {
+    http_close_session(session, NULL, 0);
     return 0;
 }
 
