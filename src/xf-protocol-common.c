@@ -74,11 +74,11 @@ static err_t cb_recv(void *arg, struct altcp_pcb *tpcb, struct pbuf *p, err_t er
     if(stream->stream_recv){
         pcurr = p;
         while(pcurr){
+            altcp_recved(tpcb, pcurr->len);
             if(stream->stream_recv(session, stream, tpcb, pcurr->payload, pcurr->len) < 0){
                 ret = ERR_ABRT;
                 goto exit;
             }
-            altcp_recved(tpcb, pcurr->len);
             pcurr = pcurr->next;
         }
     }

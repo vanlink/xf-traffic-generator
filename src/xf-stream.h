@@ -30,6 +30,7 @@ typedef struct _STREAM_t {
     int http_message_ind;
 
     int is_tls;
+    int close_with_rst;
 
     uint64_t cps;  // conn per second
     uint64_t rpc;  // req per conn

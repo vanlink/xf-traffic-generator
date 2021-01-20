@@ -34,6 +34,27 @@
 static llhttp_settings_t llhttp_settings_request;
 static llhttp_settings_t llhttp_settings_response;
 
+static int http_close_session(SESSION *session, struct altcp_pcb *pcb, int abort)
+{
+    if(pcb) {
+        altcp_sent(pcb, NULL);
+        altcp_recv(pcb, NULL);
+        altcp_err(pcb, NULL);
+
+        if(abort){
+            altcp_abort(pcb);
+        }else{
+            if (altcp_close(pcb) != ERR_OK) {
+              altcp_abort(pcb);
+            }
+        }
+    }
+
+    session_free(session);
+
+    return 0;
+}
+
 static int llhttp_on_request_complete(llhttp_t *llhttp)
 {
     printf("llhttp_on_request_complete\n");
@@ -42,7 +63,14 @@ static int llhttp_on_request_complete(llhttp_t *llhttp)
 
 static int llhttp_on_response_complete(llhttp_t *llhttp)
 {
-    printf("llhttp_on_response_complete\n");
+    SESSION *session = llhttp->data;
+    STREAM *stream = session->stream;
+    struct altcp_pcb *pcb = (struct altcp_pcb *)session->pcb;
+
+    tcp_output(pcb);
+
+    http_close_session(session, pcb, stream->close_with_rst);
+
     return HPE_OK;
 }
 
@@ -74,6 +102,26 @@ static int protocol_http_client_connecned(SESSION *session, STREAM *stream, void
 
 static int protocol_http_client_sent(SESSION *session, STREAM *stream, void *pcb, uint16_t sent_len)
 {
+    uint32_t room = altcp_sndbuf(pcb);
+    uint32_t send_cnt;
+    err_t err;
+
+    if(session->proto_state != HTTP_STATE_REQ){
+        return 0;
+    }
+
+    send_cnt = RTE_MIN(room, session->msg_len);
+    if(send_cnt){
+        err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+        if (err !=  ERR_OK) {
+            return -1;
+        }
+        session->msg_len -= send_cnt;
+        if(!session->msg_len){
+            session->proto_state = HTTP_STATE_RSP;
+        }
+    }
+
     return 0;
 }
 
