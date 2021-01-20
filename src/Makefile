@@ -1,7 +1,11 @@
+LLHTTP_DIR=llhttp
+
 LIBS = -L${RTE_SDK}/${RTE_TARGET}/lib -Wl,--whole-archive,-ldpdk,--no-whole-archive -lrt -lm -ldl -lcrypto -pthread -lnuma -lcjson -fpic
-INCLUDE = -I${RTE_SDK}/${RTE_TARGET}/include -I${DKFW_SDK}/include -I${MBEDTLS_SDK}/include -I${LWIP_SDK}/include
+INCLUDE = -I${RTE_SDK}/${RTE_TARGET}/include -I${DKFW_SDK}/include -I${MBEDTLS_SDK}/include -I${LWIP_SDK}/include -I${LLHTTP_DIR}/include
 DEPS = -Wall -Wextra -march=native -DALLOW_EXPERIMENTAL_API
-SLIBS = ${LWIP_SDK}/liblwipdpdk.a ${DKFW_SDK}/libdkfw.a ${MBEDTLS_SDK}/library/libmbedtls.a ${MBEDTLS_SDK}/library/libmbedcrypto.a ${MBEDTLS_SDK}/library/libmbedx509.a
+SLIBS = ${LWIP_SDK}/liblwipdpdk.a ${DKFW_SDK}/libdkfw.a \
+        ${MBEDTLS_SDK}/library/libmbedtls.a ${MBEDTLS_SDK}/library/libmbedcrypto.a ${MBEDTLS_SDK}/library/libmbedx509.a \
+        ${LLHTTP_DIR}/libllhttp.a
 
 ifeq ($(D),1)
 OPTIMIZE=-O0
