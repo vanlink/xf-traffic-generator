@@ -14,10 +14,13 @@
 typedef struct _STREAM_t STREAM;
 typedef struct _session_info_t SESSION;
 
-typedef int (*STREAM_SEND_FUNC)(STREAM *, int, uint64_t);
-typedef int (*STREAM_SESSION_NEW_FUNC)(SESSION *, STREAM *);
-typedef int (*STREAM_CONNECTED_FUNC)(SESSION *, STREAM *);
-typedef int (*STREAM_SENT_FUNC)(SESSION *, STREAM *, uint16_t);
+typedef int (*STREAM_SEND_FUNC)(STREAM *, int core, uint64_t tsc);
+typedef int (*STREAM_SESSION_NEW_FUNC)(SESSION *, STREAM *, void *pcb);
+typedef int (*STREAM_CONNECTED_FUNC)(SESSION *, STREAM *, void *pcb);
+typedef int (*STREAM_SENT_FUNC)(SESSION *, STREAM *, void *pcb, uint16_t);
+typedef int (*STREAM_REMOTE_CLOSE_FUNC)(SESSION *, STREAM *, void *pcb);
+typedef int (*STREAM_RECV_FUNC)(SESSION *, STREAM *, void *pcb, char *data, int datalen);
+typedef int (*STREAM_ERR_FUNC)(SESSION *, STREAM *);
 
 typedef struct _STREAM_t {
     int type;
@@ -34,10 +37,13 @@ typedef struct _STREAM_t {
 
     DKFW_CPS dkfw_cps[LWIP_CORES_MAX];
 
-    STREAM_SEND_FUNC send;
-    STREAM_SESSION_NEW_FUNC session_new;
-    STREAM_CONNECTED_FUNC connected;
-    STREAM_SENT_FUNC sent;
+    STREAM_SEND_FUNC stream_send;
+    STREAM_SESSION_NEW_FUNC stream_session_new;
+    STREAM_CONNECTED_FUNC stream_connected;
+    STREAM_SENT_FUNC stream_sent;
+    STREAM_REMOTE_CLOSE_FUNC stream_remote_close;
+    STREAM_RECV_FUNC stream_recv;
+    STREAM_ERR_FUNC stream_err;
 } STREAM;
 
 extern int g_stream_cnt;

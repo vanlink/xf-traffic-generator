@@ -367,8 +367,8 @@ static int packet_loop(int seq)
 
         for(i=0;i<g_stream_cnt;i++){
             stream = g_streams[i];
-            if(stream->send){
-                protocol_common_send(stream, seq, time_0);
+            if(stream->stream_send){
+                stream->stream_send(stream, seq, time_0);
             }
         }
 
@@ -524,6 +524,8 @@ int main(int argc, char **argv)
         goto err;
     }
 
+    *g_elapsed_ms = rte_rdtsc() * 1000ULL / tsc_per_sec;
+
     init_lwip_json(json_root, &sm->stats_lwip);
 
     if(init_sessions(cJSON_GetObjectItem(json_root, "sessions")->valueint) < 0){
@@ -552,8 +554,6 @@ int main(int argc, char **argv)
     }
 
     printf("config done.\n");
-
-    *g_elapsed_ms = rte_rdtsc() * 1000ULL / tsc_per_sec;
 
     rte_eal_mp_remote_launch(main_loop, NULL, CALL_MASTER);
 

@@ -56,7 +56,7 @@ int init_sessions(uint64_t cnt)
 SESSION *session_get(void)
 {
     SESSION *sess = NULL;
-    if(rte_mempool_get(sessions, (void **)sess) < 0) {
+    if(rte_mempool_get(sessions, (void **)&sess) < 0) {
         return NULL;
     }
 

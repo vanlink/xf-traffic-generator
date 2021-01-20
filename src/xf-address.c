@@ -151,7 +151,7 @@ int init_addresses(cJSON *json_root)
                 port = cJSON_GetObjectItem(json_address_one, "port")->valueint;
                 weight = cJSON_GetObjectItem(json_address_one, "weight")->valueint;
                 for(ip=start;ip<=end;ip++){
-                    ip_addr_set_ip4_u32(&remote_address_one->address[remote_address_one->address_cnt], ip);
+                    ip_addr_set_ip4_u32(&remote_address_one->address[remote_address_one->address_cnt], rte_bswap32(ip));
                     remote_address_one->weight_config[remote_address_one->address_cnt] = weight;
                     remote_address_one->weight[remote_address_one->address_cnt] = weight;
                     remote_address_one->address_cnt++;

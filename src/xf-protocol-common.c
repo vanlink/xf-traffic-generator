@@ -28,8 +28,12 @@ static inline err_t cb_connected(void *arg, struct altcp_pcb *tpcb, err_t err)
     SESSION *session = (SESSION *)arg;
     STREAM *stream = session->stream;
 
-    if(stream->connected){
-        return stream->connected(session, stream);
+    (void)err;
+
+    if(stream->stream_connected){
+        if(stream->stream_connected(session, stream, tpcb) < 0){
+            return ERR_ABRT;
+        }
     }
 
     return ERR_OK;
@@ -40,11 +44,62 @@ static err_t cb_sent(void *arg, struct altcp_pcb *tpcb, u16_t len)
     SESSION *session = (SESSION *)arg;
     STREAM *stream = session->stream;
 
-    if(stream->sent){
-        return stream->sent(session, stream, len);
+    if(stream->stream_sent){
+        if(stream->stream_sent(session, stream, tpcb, len) < 0){
+            return ERR_ABRT;
+        }
     }
 
     return ERR_OK;
+}
+
+static err_t cb_recv(void *arg, struct altcp_pcb *tpcb, struct pbuf *p, err_t err)
+{
+    SESSION *session = (SESSION *)arg;
+    STREAM *stream = session->stream;
+    struct pbuf *pcurr;
+    err_t ret = ERR_OK;
+
+    (void)err;
+
+    if(!p){
+        if(stream->stream_remote_close){
+            if(stream->stream_remote_close(session, stream, tpcb) < 0){
+                return ERR_ABRT;
+            }
+        }
+        return ERR_OK;
+    }
+
+    if(stream->stream_recv){
+        pcurr = p;
+        while(pcurr){
+            if(stream->stream_recv(session, stream, tpcb, pcurr->payload, pcurr->len) < 0){
+                ret = ERR_ABRT;
+                goto exit;
+            }
+            altcp_recved(tpcb, pcurr->len);
+            pcurr = pcurr->next;
+        }
+    }
+
+exit:
+
+    pbuf_free(p);
+
+    return ret;
+}
+
+static void cb_err(void *arg, err_t err)
+{
+    SESSION *session = (SESSION *)arg;
+    STREAM *stream = session->stream;
+
+    (void)err;
+
+    if(stream->stream_err){
+        stream->stream_err(session, stream);
+    }
 }
 
 static int protocol_common_send_one(STREAM *stream, int core)
@@ -81,12 +136,12 @@ static int protocol_common_send_one(STREAM *stream, int core)
 
     altcp_arg(newpcb, session);
     altcp_sent(newpcb, cb_sent);
-    // altcp_recv(newpcb, cb_httpclient_recv);
+    altcp_recv(newpcb, cb_recv);
     altcp_poll(newpcb, NULL, 2U);
-    // altcp_err(newpcb, cb_httpclient_err);
+    altcp_err(newpcb, cb_err);
 
-    if(stream->session_new){
-        stream->session_new(session, stream);
+    if(stream->stream_session_new){
+        stream->stream_session_new(session, stream, newpcb);
     }
 
     remote_addr = remote_address_get(stream->remote_address_ind, core, &port);
