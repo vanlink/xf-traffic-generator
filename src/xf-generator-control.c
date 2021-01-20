@@ -82,6 +82,7 @@ static int do_stat(void)
     
     cJSON_AddItemToObject(json_root, "lwip", dkfw_stats_to_json(&sm->stats_lwip));
     cJSON_AddItemToObject(json_root, "generator", dkfw_stats_to_json(&sm->stats_generator));
+    cJSON_AddItemToObject(json_root, "dispatch", dkfw_stats_to_json(&sm->stats_dispatch));
 
     json_array = cJSON_CreateArray();
     for(i=0;i<sm->pkt_core_cnt;i++){

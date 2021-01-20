@@ -178,12 +178,17 @@ exit:
 
 int protocol_common_send(STREAM *stream, int core, uint64_t tsc)
 {
+    int real_cnt;
     uint64_t send_cnt = dkfw_cps_get(&stream->dkfw_cps[core], tsc);
 
     if(!send_cnt){
         return 0;
     }
 
-    return protocol_common_send_one(stream, core);
+    real_cnt = 1;
+
+    protocol_common_send_one(stream, core);
+
+    return real_cnt;
 }
 

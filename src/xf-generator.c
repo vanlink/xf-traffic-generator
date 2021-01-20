@@ -21,6 +21,7 @@
 #include <rte_udp.h>
 #include <rte_icmp.h>
 #include <rte_net.h>
+#include <rte_memcpy.h>
 
 #include "cjson/cJSON.h"
 
@@ -76,6 +77,7 @@ uint64_t tsc_per_sec;
 uint64_t *g_elapsed_ms;
 
 DKFW_STATS *g_generator_stats = NULL;
+DKFW_STATS *g_dispatch_stats = NULL;
 
 static struct rte_mempool *pktmbuf_arp_clone = NULL;
 
@@ -335,6 +337,7 @@ static int dispatch_loop(int seq)
                     pkt = pkts_burst[pktind];
 
                     if(get_app_core_seq(pkt, &dst_core) < 0){
+                        DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                     }else{
                         if(likely(dst_core >= 0)){
@@ -346,10 +349,11 @@ static int dispatch_loop(int seq)
                             for(cind=0;cind<g_pkt_process_core_num;cind++){
                                 clone = rte_pktmbuf_clone(pkt, pktmbuf_arp_clone);
                                 if (!clone){
+                                    DISPATCH_STATS_NUM_INC(DISPATCH_STATS_CLONE_MBUF_EMPTY, seq);
                                     continue;
                                 }
                                 priv_dst = (MBUF_PRIV_T *)rte_mbuf_to_priv(clone);
-                                memcpy(priv_dst, priv_src, sizeof(MBUF_PRIV_T));
+                                rte_memcpy(priv_dst, priv_src, sizeof(MBUF_PRIV_T));
                                 if(unlikely(dkfw_send_pkt_to_process_core_q(cind, seq, clone) < 0)){
                                     rte_pktmbuf_free(clone);
                                 }
@@ -375,7 +379,7 @@ static int dispatch_loop(int seq)
 
 static int packet_loop(int seq)
 {
-    int i;
+    int i, send_cnt;
     uint64_t elapsed_ms_last = 0;
     uint64_t time_0;
     struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
@@ -383,6 +387,7 @@ static int packet_loop(int seq)
     int rx_num, pktind;
     STREAM *stream;
     DKFW_PROFILE *profiler = &shared_mem->profile_pkt[seq];
+    int busy;
 
     printf("packet loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
 
@@ -393,35 +398,78 @@ static int packet_loop(int seq)
     lwip_init_per_core(seq);
 
     while(1){
+
+        busy = 0;
+
         time_0 = rte_rdtsc();
+
+        DKFW_PROFILE_START(profiler, time_0);
+
+        DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_TIMER);
 
         if(seq == 0){
             *g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
         }
 
         if(*g_elapsed_ms != elapsed_ms_last){
+
+            busy = 1;
+
             elapsed_ms_last = *g_elapsed_ms;
+            
             sys_check_timeouts(*g_elapsed_ms);
         }
+
+        time_0 = rte_rdtsc();
+
+        if(busy){
+            DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_TIMER);
+        }
+
+        busy = 0;
+
+        DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_SEND);
 
         for(i=0;i<g_stream_cnt;i++){
             stream = g_streams[i];
             if(stream->stream_send){
-                stream->stream_send(stream, seq, time_0);
+                send_cnt = stream->stream_send(stream, seq, time_0);
+                if(send_cnt){
+                    busy = 1;
+                }
             }
         }
+
+        time_0 = rte_rdtsc();
+
+        if(busy){
+            DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_SEND);
+        }
+
+        busy = 0;
+
+        DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_RECV);
 
         for(i=0;i<g_pkt_distribute_core_num;i++){
             rx_num = dkfw_rcv_pkt_from_process_core_q(seq, i, pkts_burst, MAX_RCV_PKTS);
             if(unlikely(!rx_num)){
                 continue;
             }
+            busy = 1;
             for(pktind=0;pktind<rx_num;pktind++){
                 pkt = pkts_burst[pktind];
 
                 pkt_dpdk_to_lwip_real(pkt);
             }
         }
+
+        time_0 = rte_rdtsc();
+
+        if(busy){
+            DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_RECV);
+        }
+
+        DKFW_PROFILE_END(profiler, time_0);
     }
 
     return 0;
@@ -471,6 +519,21 @@ static int init_generator_stats(void *addr)
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_WRITE_FAIL, DKFW_STATS_TYPE_NUM, "tcp-write-fail");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL, DKFW_STATS_TYPE_NUM, "http-parse-fail");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_SESSION, DKFW_STATS_TYPE_RESOURCE_POOL, "session");
+
+    return 0;
+}
+
+static int init_dispatch_stats(void *addr)
+{
+    int size;
+
+    size = dkfw_stats_create_with_address(addr, g_pkt_distribute_core_num, DISPATCH_STATS_MAX);
+    printf("dispatch stats mem at %p, size=[%d]\n", addr, size);
+
+    g_dispatch_stats = addr;
+
+    dkfw_stats_add_item(g_dispatch_stats, DISPATCH_STATS_UNKNOWN_CORE, DKFW_STATS_TYPE_NUM, "unknown-core");
+    dkfw_stats_add_item(g_dispatch_stats, DISPATCH_STATS_CLONE_MBUF_EMPTY, DKFW_STATS_TYPE_NUM, "clone-empty");
 
     return 0;
 }
@@ -611,6 +674,8 @@ int main(int argc, char **argv)
     init_lwip_json(json_root, &shared_mem->stats_lwip);
 
     init_generator_stats(&shared_mem->stats_generator);
+
+    init_dispatch_stats(&shared_mem->stats_dispatch);
 
     init_generator_profile(shared_mem);
 

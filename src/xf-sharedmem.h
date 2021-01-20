@@ -16,6 +16,9 @@ typedef struct _SHARED_MEM_TAG {
     DKFW_STATS stats_generator;  // 13208 bytes
     char pad2[64000];
 
+    DKFW_STATS stats_dispatch;  // 13208 bytes
+    char pad3[16000];
+
     DKFW_PROFILE profile_pkt[MAX_CORES_PER_ROLE];
     DKFW_PROFILE profile_dispatch[MAX_CORES_PER_ROLE];
 
