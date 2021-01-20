@@ -53,6 +53,14 @@
 #include "xf-protocol-common.h"
 #include "xf-protocol-http.h"
 
+enum {
+    PROFILE_ITEM_TIMER,
+    PROFILE_ITEM_SEND,
+    PROFILE_ITEM_RECV,
+    PROFILE_ITEM_CAPTURE,
+    PROFILE_ITEM_MAX,
+};
+
 typedef struct _DPDK_MBUF_PRIV_TAG {
     struct netif *pnetif;
 } MBUF_PRIV_T;
@@ -78,6 +86,8 @@ static const struct option long_options[] = {
 
     { 0, 0, 0, 0},
 };
+
+static SHARED_MEM_T *shared_mem = NULL;
 
 static int cmd_parse_args(int argc, char **argv)
 {
@@ -292,6 +302,7 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
 
 static int dispatch_loop(int seq)
 {
+    uint64_t time_0;
     int i, cind;
     struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
     struct rte_mbuf *pkt, *clone;
@@ -299,13 +310,27 @@ static int dispatch_loop(int seq)
     int dst_core;
     MBUF_PRIV_T *priv_src;
     MBUF_PRIV_T *priv_dst;
+    DKFW_PROFILE *profiler = &shared_mem->profile_dispatch[seq];
+    int busy;
 
     printf("dispatch loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
 
     while(1){
+
+        time_0 = rte_rdtsc();
+
+        busy = 0;
+
+        DKFW_PROFILE_START(profiler, time_0);
+
+        DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_RECV);
+
         for(i=0;i<g_dkfw_interfaces_num;i++){
             rx_num = dkfw_rcv_pkt_from_interface(i, seq, pkts_burst, MAX_RCV_PKTS);
             if(rx_num){
+
+                busy = 1;
+
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
@@ -335,6 +360,14 @@ static int dispatch_loop(int seq)
                 }
             }
         }
+
+        time_0 = rte_rdtsc();
+
+        if(busy){
+            DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_RECV);
+        }
+        
+        DKFW_PROFILE_END(profiler, time_0);
     }
 
     return 0;
@@ -349,6 +382,7 @@ static int packet_loop(int seq)
     struct rte_mbuf *pkt;
     int rx_num, pktind;
     STREAM *stream;
+    DKFW_PROFILE *profiler = &shared_mem->profile_pkt[seq];
 
     printf("packet loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
 
@@ -441,6 +475,24 @@ static int init_generator_stats(void *addr)
     return 0;
 }
 
+static int init_generator_profile(SHARED_MEM_T *sm)
+{
+    int i;
+    DKFW_PROFILE *profile;
+
+    for(i=0;i<g_pkt_process_core_num;i++){
+        profile = &sm->profile_pkt[i];
+        dkfw_profile_init(profile, PROFILE_ITEM_MAX);
+    }
+
+    for(i=0;i<g_pkt_distribute_core_num;i++){
+        profile = &sm->profile_dispatch[i];
+        dkfw_profile_init(profile, PROFILE_ITEM_MAX);
+    }
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int i;
@@ -450,7 +502,6 @@ int main(int argc, char **argv)
     cJSON *json_root = NULL;
     cJSON *json_item;
     cJSON *json_array_item;
-    SHARED_MEM_T *sm;
     unsigned lcore_id = 0;
 
     if(!json_str){
@@ -538,14 +589,17 @@ int main(int argc, char **argv)
     tsc_per_sec = rte_get_tsc_hz();
     printf("tsc per second is [%lu]\n", tsc_per_sec);
 
-    sm = (SHARED_MEM_T *)dkfw_global_sharemem_get();
-    if(!sm){
+    shared_mem = (SHARED_MEM_T *)dkfw_global_sharemem_get();
+    if(!shared_mem){
         printf("get shared mem err.\n");
         ret = -1;
         goto err;
     }
 
-    g_elapsed_ms = &sm->elapsed_ms;
+    g_elapsed_ms = &shared_mem->elapsed_ms;
+
+    shared_mem->pkt_core_cnt = g_pkt_process_core_num;
+    shared_mem->dispatch_core_cnt = g_pkt_distribute_core_num;
 
     if(init_pktmbuf_pool() < 0){
         ret = -1;
@@ -554,9 +608,11 @@ int main(int argc, char **argv)
 
     *g_elapsed_ms = rte_rdtsc() * 1000ULL / tsc_per_sec;
 
-    init_lwip_json(json_root, &sm->stats_lwip);
+    init_lwip_json(json_root, &shared_mem->stats_lwip);
 
-    init_generator_stats(&sm->stats_generator);
+    init_generator_stats(&shared_mem->stats_generator);
+
+    init_generator_profile(shared_mem);
 
     if(init_sessions(cJSON_GetObjectItem(json_root, "sessions")->valueint) < 0){
         ret = -1;

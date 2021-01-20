@@ -73,6 +73,10 @@ static int do_stat(void)
     json_root = cJSON_CreateObject();
     sprintf(buff, "%lu", sm->elapsed_ms);
     cJSON_AddItemToObject(json_root, "elapsed_ms", cJSON_CreateString(buff));
+    
+    cJSON_AddItemToObject(json_root, "pkt_core_cnt", cJSON_CreateNumber(sm->pkt_core_cnt));
+    cJSON_AddItemToObject(json_root, "dispatch_core_cnt", cJSON_CreateNumber(sm->dispatch_core_cnt));
+    
     cJSON_AddItemToObject(json_root, "lwip", dkfw_stats_to_json(&sm->stats_lwip));
     cJSON_AddItemToObject(json_root, "generator", dkfw_stats_to_json(&sm->stats_generator));
 
