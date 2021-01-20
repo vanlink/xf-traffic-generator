@@ -4,6 +4,6 @@
 #include "cjson/cJSON.h"
 
 extern int init_protocol_http_msg(cJSON *json_root);
-extern char *protocol_http_msg_get(int pool_ind, int msg_ind, int *msg_len);
+extern char *protocol_http_msg_get(int pool_ind, int *msg_ind, int *msg_len);
 #endif
 

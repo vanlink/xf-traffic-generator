@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#include <rte_common.h>
 #include <rte_malloc.h>
 
 #include "cjson/cJSON.h"
@@ -23,23 +24,49 @@
 #include "xf-protocol-http.h"
 #include "xf-session.h"
 #include "xf-generator.h"
+#include "xf-protocol-http-msg.h"
 
-static const char *http_req_str = "GET /small.html HTTP/1.1\r\n" "Host: 127.0.0.1\r\n" "User-Agent: tg\r\n" "Accept: */*\r\n" "\r\n";
+#include "llhttp.h"
+
+#define HTTP_STATE_REQ 0
+#define HTTP_STATE_RSP 1
+
+static llhttp_settings_t llhttp_settings_request;
+static llhttp_settings_t llhttp_settings_response;
+
+static int llhttp_on_request_complete(llhttp_t *llhttp)
+{
+    printf("llhttp_on_request_complete\n");
+    return HPE_OK;
+}
+
+static int llhttp_on_response_complete(llhttp_t *llhttp)
+{
+    printf("llhttp_on_response_complete\n");
+    return HPE_OK;
+}
 
 static int protocol_http_client_connecned(SESSION *session, STREAM *stream, void *pcb)
 {
-    err_t err2 = ERR_OK;
+    int msg_ind = session->msg_ind;
+    uint32_t room = altcp_sndbuf(pcb);
+    uint32_t send_cnt;
+    err_t err;
 
-    err2 = altcp_write(pcb, http_req_str, strlen(http_req_str), 0);
-    if (err2 !=  ERR_OK) {
-        printf("cb_httpclient_connected altcp_write err=%d.\n", err2);
-        return err2;
-    }
+    session->proto_state = HTTP_STATE_REQ;
+    session->msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len);
+    session->msg_ind = msg_ind;
 
-    err2 = altcp_output(pcb);
-    if (err2 !=  ERR_OK) {
-        printf("cb_httpclient_connected altcp_output err=%d.\n", err2);
-        return err2;
+    send_cnt = RTE_MIN(room, session->msg_len);
+    if(send_cnt){
+        err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+        if (err !=  ERR_OK) {
+            return -1;
+        }
+        session->msg_len -= send_cnt;
+        if(!session->msg_len){
+            session->proto_state = HTTP_STATE_RSP;
+        }
     }
 
     return 0;
@@ -57,7 +84,10 @@ static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, v
 
 static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb, char *data, int datalen)
 {
-    printf("%s", data);
+    if(HPE_OK != llhttp_execute(&session->http_parser, data, datalen)){
+        return -1;
+    }
+
     return 0;
 }
 
@@ -68,6 +98,9 @@ static int protocol_http_client_err(SESSION *session, STREAM *stream)
 
 static int protocol_http_client_session_new(SESSION *session, STREAM *stream, void *pcb)
 {
+    llhttp_init(&session->http_parser, HTTP_RESPONSE, &llhttp_settings_response);
+    session->http_parser.data = session;
+
     return 0;
 }
 
@@ -105,6 +138,17 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
 
 int init_stream_http_server(cJSON *json_root, STREAM *stream)
 {
+    return 0;
+}
+
+int init_protocol_http(void)
+{
+    llhttp_settings_init(&llhttp_settings_request);
+    llhttp_settings_init(&llhttp_settings_response);
+
+    llhttp_settings_request.on_message_complete = llhttp_on_request_complete;
+    llhttp_settings_response.on_message_complete = llhttp_on_response_complete;
+
     return 0;
 }
 

@@ -50,6 +50,7 @@
 #include "xf-protocol-http-msg.h"
 #include "xf-stream.h"
 #include "xf-protocol-common.h"
+#include "xf-protocol-http.h"
 
 typedef struct _DPDK_MBUF_PRIV_TAG {
     struct netif *pnetif;
@@ -552,6 +553,8 @@ int main(int argc, char **argv)
         ret = -1;
         goto err;
     }
+
+    init_protocol_http();
 
     printf("config done.\n");
 
