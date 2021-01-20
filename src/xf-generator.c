@@ -515,10 +515,17 @@ static int init_generator_stats(void *addr)
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TO_DPDK_SEND_FAIL, DKFW_STATS_TYPE_NUM, "send-pkt-fail");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_LOCAL_PORT_NEXT, DKFW_STATS_TYPE_NUM, "port-next");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_LOCAL_PORT_EMPTY, DKFW_STATS_TYPE_NUM, "port-empty");
-    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_ERROR, DKFW_STATS_TYPE_NUM, "tcp-error");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_WRITE_FAIL, DKFW_STATS_TYPE_NUM, "tcp-write-fail");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL, DKFW_STATS_TYPE_NUM, "http-parse-fail");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_SESSION, DKFW_STATS_TYPE_RESOURCE_POOL, "session");
+
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CONN_ATTEMP, DKFW_STATS_TYPE_NUM, "tcp-conn-attemp");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CONN_SUCC, DKFW_STATS_TYPE_NUM, "tcp-conn-succ");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CLOSE_LOCAL, DKFW_STATS_TYPE_NUM, "tcp-close-local");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CLOSE_REMOTE, DKFW_STATS_TYPE_NUM, "tcp-close-remote");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CLOSE_ERROR, DKFW_STATS_TYPE_NUM, "tcp-close-err");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_HTTP_REQUEST, DKFW_STATS_TYPE_NUM, "http-request");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_HTTP_RESPONSE, DKFW_STATS_TYPE_NUM, "http-response");
 
     return 0;
 }

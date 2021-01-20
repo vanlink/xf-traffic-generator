@@ -31,6 +31,8 @@ static inline err_t cb_connected(void *arg, struct altcp_pcb *tpcb, err_t err)
 
     (void)err;
 
+    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TCP_CONN_SUCC);
+
     if(stream->stream_connected){
         if(stream->stream_connected(session, stream, tpcb) < 0){
             return ERR_ABRT;
@@ -98,7 +100,7 @@ static void cb_err(void *arg, err_t err)
 
     (void)err;
 
-    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_ERROR);
+    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TCP_CLOSE_ERROR);
 
     if(stream->stream_err){
         stream->stream_err(session, stream);
@@ -187,6 +189,7 @@ int protocol_common_send(STREAM *stream, int core, uint64_t tsc)
 
     real_cnt = 1;
 
+    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TCP_CONN_ATTEMP);
     protocol_common_send_one(stream, core);
 
     return real_cnt;
