@@ -86,6 +86,7 @@ static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
     if(send_cnt){
         err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
         if (err !=  ERR_OK) {
+            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
         }
         session->msg_len -= send_cnt;
@@ -134,6 +135,7 @@ static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, v
 static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb, char *data, int datalen)
 {
     if(HPE_OK != llhttp_execute(&session->http_parser, data, datalen)){
+        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL);
         return -1;
     }
 

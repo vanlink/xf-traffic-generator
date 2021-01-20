@@ -43,6 +43,7 @@
 #include "lwip/tcp.h"
 #include "lwip/memp.h"
 
+#include "xf-generator.h"
 #include "xf-sharedmem.h"
 #include "xf-session.h"
 #include "xf-network.h"
@@ -65,6 +66,8 @@ static DKFW_CONFIG dkfw_config;
 
 uint64_t tsc_per_sec;
 uint64_t *g_elapsed_ms;
+
+DKFW_STATS *g_generator_stats = NULL;
 
 static struct rte_mempool *pktmbuf_arp_clone = NULL;
 
@@ -197,8 +200,9 @@ static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m)
 
     ret = priv->pnetif->input(p, priv->pnetif);
     if(ret != ERR_OK){
+        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_LWIP_PROCESS_FAIL);
         ret = -1;
-         pbuf_free(p);
+        pbuf_free(p);
     }
 
 exit:
@@ -414,6 +418,29 @@ static int main_loop(__rte_unused void *dummy)
     return 0;
 }
 
+static int init_generator_stats(void *addr)
+{
+    int size;
+
+    size = dkfw_stats_create_with_address(addr, g_pkt_process_core_num, GENERATOR_STATS_MAX);
+    printf("generator stats mem at %p, size=[%d]\n", addr, size);
+
+    g_generator_stats = addr;
+
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_LWIP_PROCESS_FAIL, DKFW_STATS_TYPE_NUM, "lwip-fail");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TO_DPDK_MBUF_EMPTY, DKFW_STATS_TYPE_NUM, "send-mbuf-empty");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TO_DPDK_MBUF_SMALL, DKFW_STATS_TYPE_NUM, "send-mbuf-small");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TO_DPDK_SEND_FAIL, DKFW_STATS_TYPE_NUM, "send-pkt-fail");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_LOCAL_PORT_NEXT, DKFW_STATS_TYPE_NUM, "port-next");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_LOCAL_PORT_EMPTY, DKFW_STATS_TYPE_NUM, "port-empty");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_ERROR, DKFW_STATS_TYPE_NUM, "tcp-error");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_WRITE_FAIL, DKFW_STATS_TYPE_NUM, "tcp-write-fail");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL, DKFW_STATS_TYPE_NUM, "http-parse-fail");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_SESSION, DKFW_STATS_TYPE_RESOURCE_POOL, "session");
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int i;
@@ -528,6 +555,8 @@ int main(int argc, char **argv)
     *g_elapsed_ms = rte_rdtsc() * 1000ULL / tsc_per_sec;
 
     init_lwip_json(json_root, &sm->stats_lwip);
+
+    init_generator_stats(&sm->stats_generator);
 
     if(init_sessions(cJSON_GetObjectItem(json_root, "sessions")->valueint) < 0){
         ret = -1;

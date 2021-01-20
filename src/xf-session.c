@@ -24,6 +24,8 @@
 
 #include "cjson/cJSON.h"
 
+#include "lwip/init.h"
+
 #include "dkfw_intf.h"
 #include "dkfw_core.h"
 #include "dkfw_profile.h"
@@ -34,6 +36,7 @@
 
 #include "xf-sharedmem.h"
 #include "xf-session.h"
+#include "xf-generator.h"
 
 static struct rte_mempool *sessions = NULL;
 
@@ -56,9 +59,13 @@ int init_sessions(uint64_t cnt)
 SESSION *session_get(void)
 {
     SESSION *sess = NULL;
+
     if(rte_mempool_get(sessions, (void **)&sess) < 0) {
+        GENERATOR_STATS_RESPOOL_ALLOC_FAIL(GENERATOR_STATS_SESSION);
         return NULL;
     }
+
+    GENERATOR_STATS_RESPOOL_ALLOC_SUCC(GENERATOR_STATS_SESSION);
 
     bzero(sess, sizeof(SESSION));
 
@@ -67,6 +74,7 @@ SESSION *session_get(void)
 
 void session_free(SESSION *sess)
 {
+    GENERATOR_STATS_RESPOOL_FREE(GENERATOR_STATS_SESSION);
     rte_mempool_put(sessions, sess);
 }
 

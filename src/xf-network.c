@@ -23,6 +23,7 @@
 
 #include "xf-tools.h"
 #include "xf-network.h"
+#include "xf-generator.h"
 
 static struct netif *lwip_netifs_ptr[LWIP_INTERFACE_MAX];
 static int lwip_netif_num_2_phy_port_ind[LWIP_INTERFACE_MAX + 2] = {0};
@@ -42,12 +43,14 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
 
     m = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
     if(!m) {
+        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_EMPTY);
         return ERR_MEM;
     }
 
     for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
         data = rte_pktmbuf_append(m, lwip_pbuf->len);
         if(!data) {
+            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
             rte_pktmbuf_free(m);
             return ERR_MEM;
         }
@@ -96,6 +99,7 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
 
     ret = rte_eth_tx_burst(lwip_netif_num_2_phy_port_ind[intf->num], p->cpu_id, &m, 1);
     if (unlikely(ret < 1)) {
+        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_SEND_FAIL);
         rte_pktmbuf_free(m);
     }
 

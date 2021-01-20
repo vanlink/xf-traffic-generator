@@ -4,10 +4,13 @@
 #include "dkfw_stats.h"
 
 typedef struct _SHARED_MEM_TAG {
-    DKFW_STATS stats_lwip;
+    uint64_t elapsed_ms;
+
+    DKFW_STATS stats_lwip; // 47528 bytes
     char pad1[128000];
 
-    uint64_t elapsed_ms;
+    DKFW_STATS stats_generator;  // 13208 bytes
+    char pad2[64000];
 
 } SHARED_MEM_T;
 

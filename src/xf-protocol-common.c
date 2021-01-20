@@ -21,6 +21,7 @@
 #include "xf-stream.h"
 #include "xf-protocol-common.h"
 #include "xf-address.h"
+#include "xf-generator.h"
 
 // err always OK
 static inline err_t cb_connected(void *arg, struct altcp_pcb *tpcb, err_t err)
@@ -97,6 +98,8 @@ static void cb_err(void *arg, err_t err)
 
     (void)err;
 
+    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_ERROR);
+
     if(stream->stream_err){
         stream->stream_err(session, stream);
     }
@@ -158,7 +161,9 @@ static int protocol_common_send_one(STREAM *stream, int core)
             break;
         }
         force_next = 1;
+        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_LOCAL_PORT_NEXT);
     }
+    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_LOCAL_PORT_EMPTY);
 
     ret = -1;
 
