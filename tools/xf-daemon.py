@@ -172,7 +172,7 @@ def do_log_stream():
             now = get_stream_item(r, stream_ind, core)
             do_log_stream_core_one(now, filename, ms)
             if stream_sum_now:
-                stream_sum_now = stream_sum_now + StatDict(now)
+                stream_sum_now = StatDict(stream_sum_now) + StatDict(now)
             else:
                 stream_sum_now = StatDict(now)
 
