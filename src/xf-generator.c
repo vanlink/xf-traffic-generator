@@ -309,7 +309,7 @@ static int dispatch_loop(int seq)
     struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
     struct rte_mbuf *pkt, *clone;
     int rx_num, pktind;
-    int dst_core;
+    int dst_core = 0;
     MBUF_PRIV_T *priv_src;
     MBUF_PRIV_T *priv_dst;
     DKFW_PROFILE *profiler = &g_generator_shared_mem->profile_dispatch[seq];
