@@ -287,6 +287,10 @@ static cJSON *make_json_cpu(void)
     cJSON *json_array;
     int i;
     DKFW_PROFILE *profiler;
+    char buff[64];
+
+    sprintf(buff, "%lu", g_sm->elapsed_ms);
+    cJSON_AddItemToObject(json_root, "elapsed_ms", cJSON_CreateString(buff));
 
     json_array = cJSON_CreateArray();
     for(i=0;i<g_sm->pkt_core_cnt;i++){
@@ -307,14 +311,20 @@ static cJSON *make_json_cpu(void)
 
 static cJSON *make_json_stat_streams(void)
 {
+    char buff[64];
+    cJSON *json_root = cJSON_CreateObject();
     int i;
     cJSON *json_array = cJSON_CreateArray();
+
+    sprintf(buff, "%lu", g_sm->elapsed_ms);
+    cJSON_AddItemToObject(json_root, "elapsed_ms", cJSON_CreateString(buff));
 
     for(i=0;i<g_sm->streams_cnt;i++){
         cJSON_AddItemToArray(json_array, dkfw_stats_to_json(&g_sm->stats_streams[i].stats_stream));
     }
+    cJSON_AddItemToObject(json_root, "streams", json_array);
 
-    return json_array;
+    return json_root;
 }
 
 static void route(void)
