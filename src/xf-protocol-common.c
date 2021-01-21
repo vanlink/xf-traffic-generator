@@ -31,7 +31,7 @@ static inline err_t cb_connected(void *arg, struct altcp_pcb *tpcb, err_t err)
 
     (void)err;
 
-    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TCP_CONN_SUCC);
+    STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_SUCC);
 
     if(stream->stream_connected){
         if(stream->stream_connected(session, stream, tpcb) < 0){
@@ -98,9 +98,21 @@ static void cb_err(void *arg, err_t err)
     SESSION *session = (SESSION *)arg;
     STREAM *stream = session->stream;
 
-    (void)err;
-
-    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TCP_CLOSE_ERROR);
+    if(err == ERR_ABRT){
+        // user called tcp_abandon
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_ERROR);
+    }else if(err == ERR_TIMEOUT){
+        // timer timeout
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_TIMEOUT);
+    }else if(err == ERR_RST){
+        // reset by remote
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_REMOTE_RST);
+    }else if(err == ERR_CLSD){
+        // see tcp_input_delayed_close
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_ERROR);
+    }else{
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_ERROR);
+    }
 
     if(stream->stream_err){
         stream->stream_err(session, stream);
@@ -202,7 +214,7 @@ int protocol_common_send(STREAM *stream, int core, uint64_t tsc)
 
     real_cnt = 1;
 
-    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TCP_CONN_ATTEMP);
+    STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_ATTEMP);
     protocol_common_send_one(stream, core);
 
     return real_cnt;

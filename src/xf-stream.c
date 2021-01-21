@@ -36,14 +36,37 @@
 #include "lwip/memp.h"
 
 #include "dkfw_cps.h"
+#include "dpdkframework.h"
 
 #include "xf-tools.h"
 #include "xf-stream.h"
 #include "xf-protocol-common.h"
 #include "xf-protocol-http.h"
+#include "xf-sharedmem.h"
 
 int g_stream_cnt = 0;
 STREAM *g_streams[STREAM_CNT_MAX];
+
+static int init_stream_stats(DKFW_STATS *stats)
+{
+    int size;
+
+    size = dkfw_stats_create_with_address(stats, g_pkt_process_core_num, STREAM_STATS_MAX);
+    printf("stream stats mem at %p, size=[%d]\n", stats, size);
+
+    dkfw_stats_add_item(stats, STREAM_STATS_TCP_CONN_ATTEMP, DKFW_STATS_TYPE_NUM, "tcp-conn-attemp");
+    dkfw_stats_add_item(stats, STREAM_STATS_TCP_CONN_SUCC, DKFW_STATS_TYPE_NUM, "tcp-conn-succ");
+    dkfw_stats_add_item(stats, STREAM_STATS_TCP_CLOSE_LOCAL, DKFW_STATS_TYPE_NUM, "tcp-close-local");
+    dkfw_stats_add_item(stats, STREAM_STATS_TCP_CLOSE_REMOTE_FIN, DKFW_STATS_TYPE_NUM, "tcp-close-remote-fin");
+    dkfw_stats_add_item(stats, STREAM_STATS_TCP_CLOSE_REMOTE_RST, DKFW_STATS_TYPE_NUM, "tcp-close-remote-rst");
+    dkfw_stats_add_item(stats, STREAM_STATS_TCP_CLOSE_TIMEOUT, DKFW_STATS_TYPE_NUM, "tcp-close-timeout");
+    dkfw_stats_add_item(stats, STREAM_STATS_TCP_CLOSE_ERROR, DKFW_STATS_TYPE_NUM, "tcp-close-err");
+
+    dkfw_stats_add_item(stats, STREAM_STATS_HTTP_REQUEST, DKFW_STATS_TYPE_NUM, "http-request");
+    dkfw_stats_add_item(stats, STREAM_STATS_HTTP_RESPONSE, DKFW_STATS_TYPE_NUM, "http-response");
+
+    return 0;
+}
 
 int init_streams(cJSON *json_root)
 {
@@ -61,8 +84,14 @@ int init_streams(cJSON *json_root)
             printf("init stream mem error.\n");
             return -1;
         }
-        g_streams[g_stream_cnt] = stream;
-        g_stream_cnt++;
+
+        if(g_stream_cnt >= STREAM_CNT_MAX){
+            printf("too many streams.\n");
+            return -1;
+        }
+
+        stream->stream_stat = &g_generator_shared_mem->stats_streams[g_stream_cnt].stats_stream;
+        init_stream_stats(stream->stream_stat);
 
         str = cJSON_GetObjectItem(json_array_item, "type")->valuestring;
         if(strstr(str, "httpclient")){
@@ -79,7 +108,12 @@ int init_streams(cJSON *json_root)
             printf("invalid stream type.\n");
             return -1;
         }
+
+        g_streams[g_stream_cnt] = stream;
+        g_stream_cnt++;
     }
+
+    g_generator_shared_mem->streams_cnt = g_stream_cnt;
 
     return 0;
 }

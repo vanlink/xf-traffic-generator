@@ -79,10 +79,16 @@ static int do_stat(void)
     
     cJSON_AddItemToObject(json_root, "pkt_core_cnt", cJSON_CreateNumber(sm->pkt_core_cnt));
     cJSON_AddItemToObject(json_root, "dispatch_core_cnt", cJSON_CreateNumber(sm->dispatch_core_cnt));
+    cJSON_AddItemToObject(json_root, "streams_cnt", cJSON_CreateNumber(sm->streams_cnt));
     
     cJSON_AddItemToObject(json_root, "lwip", dkfw_stats_to_json(&sm->stats_lwip));
     cJSON_AddItemToObject(json_root, "generator", dkfw_stats_to_json(&sm->stats_generator));
     cJSON_AddItemToObject(json_root, "dispatch", dkfw_stats_to_json(&sm->stats_dispatch));
+
+    for(i=0;i<sm->streams_cnt;i++){
+        sprintf(buff, "stream_stats_%d", i);
+        cJSON_AddItemToObject(json_root, buff, dkfw_stats_to_json(&sm->stats_streams[i].stats_stream));
+    }
 
     json_array = cJSON_CreateArray();
     for(i=0;i<sm->pkt_core_cnt;i++){

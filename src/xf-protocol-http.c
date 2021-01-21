@@ -66,14 +66,14 @@ static int llhttp_on_response_complete(llhttp_t *llhttp)
     STREAM *stream = session->stream;
     struct altcp_pcb *pcb = (struct altcp_pcb *)session->pcb;
 
-    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_HTTP_RESPONSE);
+    STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_RESPONSE);
 
     session->response_ok = 1;
 
     if(session->proto_state == HTTP_STATE_RSP){
         altcp_output(pcb);
         http_close_session(session, pcb, stream->close_with_rst);
-        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TCP_CLOSE_LOCAL);
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
     }
 
     return HPE_OK;
@@ -94,13 +94,13 @@ static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
         }
         session->msg_len -= send_cnt;
         if(!session->msg_len){
-            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_HTTP_REQUEST);
+            STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_REQUEST);
             session->proto_state = HTTP_STATE_RSP;
             // server responsed early.
             if(session->response_ok){
                 altcp_output(pcb);
                 http_close_session(session, pcb, stream->close_with_rst);
-                GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TCP_CLOSE_LOCAL);
+                STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
             }
         }
     }
@@ -133,7 +133,7 @@ static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, v
 {
     altcp_output(pcb);
     http_close_session(session, pcb, stream->close_with_rst);
-    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TCP_CLOSE_REMOTE);
+    STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_REMOTE_FIN);
 
     return 0;
 }

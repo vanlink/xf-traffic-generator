@@ -89,7 +89,7 @@ static const struct option long_options[] = {
     { 0, 0, 0, 0},
 };
 
-static SHARED_MEM_T *shared_mem = NULL;
+SHARED_MEM_T *g_generator_shared_mem = NULL;
 
 static int cmd_parse_args(int argc, char **argv)
 {
@@ -312,7 +312,7 @@ static int dispatch_loop(int seq)
     int dst_core;
     MBUF_PRIV_T *priv_src;
     MBUF_PRIV_T *priv_dst;
-    DKFW_PROFILE *profiler = &shared_mem->profile_dispatch[seq];
+    DKFW_PROFILE *profiler = &g_generator_shared_mem->profile_dispatch[seq];
     int busy;
 
     printf("dispatch loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
@@ -386,7 +386,7 @@ static int packet_loop(int seq)
     struct rte_mbuf *pkt;
     int rx_num, pktind;
     STREAM *stream;
-    DKFW_PROFILE *profiler = &shared_mem->profile_pkt[seq];
+    DKFW_PROFILE *profiler = &g_generator_shared_mem->profile_pkt[seq];
     int busy;
 
     printf("packet loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
@@ -518,14 +518,6 @@ static int init_generator_stats(void *addr)
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_WRITE_FAIL, DKFW_STATS_TYPE_NUM, "tcp-write-fail");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL, DKFW_STATS_TYPE_NUM, "http-parse-fail");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_SESSION, DKFW_STATS_TYPE_RESOURCE_POOL, "session");
-
-    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CONN_ATTEMP, DKFW_STATS_TYPE_NUM, "tcp-conn-attemp");
-    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CONN_SUCC, DKFW_STATS_TYPE_NUM, "tcp-conn-succ");
-    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CLOSE_LOCAL, DKFW_STATS_TYPE_NUM, "tcp-close-local");
-    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CLOSE_REMOTE, DKFW_STATS_TYPE_NUM, "tcp-close-remote");
-    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_TCP_CLOSE_ERROR, DKFW_STATS_TYPE_NUM, "tcp-close-err");
-    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_HTTP_REQUEST, DKFW_STATS_TYPE_NUM, "http-request");
-    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_HTTP_RESPONSE, DKFW_STATS_TYPE_NUM, "http-response");
 
     return 0;
 }
@@ -659,17 +651,17 @@ int main(int argc, char **argv)
     tsc_per_sec = rte_get_tsc_hz();
     printf("tsc per second is [%lu]\n", tsc_per_sec);
 
-    shared_mem = (SHARED_MEM_T *)dkfw_global_sharemem_get();
-    if(!shared_mem){
+    g_generator_shared_mem = (SHARED_MEM_T *)dkfw_global_sharemem_get();
+    if(!g_generator_shared_mem){
         printf("get shared mem err.\n");
         ret = -1;
         goto err;
     }
 
-    g_elapsed_ms = &shared_mem->elapsed_ms;
+    g_elapsed_ms = &g_generator_shared_mem->elapsed_ms;
 
-    shared_mem->pkt_core_cnt = g_pkt_process_core_num;
-    shared_mem->dispatch_core_cnt = g_pkt_distribute_core_num;
+    g_generator_shared_mem->pkt_core_cnt = g_pkt_process_core_num;
+    g_generator_shared_mem->dispatch_core_cnt = g_pkt_distribute_core_num;
 
     if(init_pktmbuf_pool() < 0){
         ret = -1;
@@ -678,13 +670,13 @@ int main(int argc, char **argv)
 
     *g_elapsed_ms = rte_rdtsc() * 1000ULL / tsc_per_sec;
 
-    init_lwip_json(json_root, &shared_mem->stats_lwip);
+    init_lwip_json(json_root, &g_generator_shared_mem->stats_lwip);
 
-    init_generator_stats(&shared_mem->stats_generator);
+    init_generator_stats(&g_generator_shared_mem->stats_generator);
 
-    init_dispatch_stats(&shared_mem->stats_dispatch);
+    init_dispatch_stats(&g_generator_shared_mem->stats_dispatch);
 
-    init_generator_profile(shared_mem);
+    init_generator_profile(g_generator_shared_mem);
 
     if(init_sessions(cJSON_GetObjectItem(json_root, "sessions")->valueint) < 0){
         ret = -1;

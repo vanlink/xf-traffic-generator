@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "cjson/cJSON.h"
 #include "dkfw_cps.h"
+#include "dkfw_stats.h"
 #include "lwip/opt.h"
 #include "xf-session.h"
 
@@ -10,6 +11,21 @@
 
 #define STREAM_TYPE_HTTPCLIENT 0
 #define STREAM_TYPE_HTTPSERVER 1
+
+enum {
+    STREAM_STATS_TCP_CONN_ATTEMP,
+    STREAM_STATS_TCP_CONN_SUCC,
+    STREAM_STATS_TCP_CLOSE_LOCAL,
+    STREAM_STATS_TCP_CLOSE_REMOTE_FIN,
+    STREAM_STATS_TCP_CLOSE_REMOTE_RST,
+    STREAM_STATS_TCP_CLOSE_TIMEOUT,
+    STREAM_STATS_TCP_CLOSE_ERROR,
+
+    STREAM_STATS_HTTP_REQUEST,
+    STREAM_STATS_HTTP_RESPONSE,
+
+    STREAM_STATS_MAX
+};
 
 typedef struct _STREAM_t STREAM;
 typedef struct _session_info_t SESSION;
@@ -38,6 +54,8 @@ typedef struct _STREAM_t {
 
     DKFW_CPS dkfw_cps[LWIP_CORES_MAX];
 
+    DKFW_STATS *stream_stat;
+
     STREAM_SEND_FUNC stream_send;
     STREAM_SESSION_NEW_FUNC stream_session_new;
     STREAM_CONNECTED_FUNC stream_connected;
@@ -51,6 +69,8 @@ extern int g_stream_cnt;
 extern STREAM *g_streams[STREAM_CNT_MAX];
 
 extern int init_streams(cJSON *json_root);
+
+#define STREAM_STATS_NUM_INC(stream,id)             DKFW_STATS_CNT_INCR(stream->stream_stat,id,RTE_PER_LCORE(g_cpu_id))
 
 #endif
 
