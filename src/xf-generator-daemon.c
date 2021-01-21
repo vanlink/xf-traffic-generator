@@ -281,6 +281,42 @@ static cJSON *make_json_basic(void)
     return json_root;
 }
 
+static cJSON *make_json_cpu(void)
+{
+    cJSON *json_root = cJSON_CreateObject();
+    cJSON *json_array;
+    int i;
+    DKFW_PROFILE *profiler;
+
+    json_array = cJSON_CreateArray();
+    for(i=0;i<g_sm->pkt_core_cnt;i++){
+        profiler = &g_sm->profile_pkt[i];
+        cJSON_AddItemToArray(json_array, dkfw_profile_to_json(profiler));
+    }
+    cJSON_AddItemToObject(json_root, "profile_pkt", json_array);
+
+    json_array = cJSON_CreateArray();
+    for(i=0;i<g_sm->dispatch_core_cnt;i++){
+        profiler = &g_sm->profile_dispatch[i];
+        cJSON_AddItemToArray(json_array, dkfw_profile_to_json(profiler));
+    }
+    cJSON_AddItemToObject(json_root, "profile_dispatch", json_array);
+
+    return json_root;
+}
+
+static cJSON *make_json_stat_streams(void)
+{
+    int i;
+    cJSON *json_array = cJSON_CreateArray();
+
+    for(i=0;i<g_sm->streams_cnt;i++){
+        cJSON_AddItemToArray(json_array, dkfw_stats_to_json(&g_sm->stats_streams[i].stats_stream));
+    }
+
+    return json_array;
+}
+
 static void route(void)
 {
     int retval = 0;
@@ -294,7 +330,9 @@ static void route(void)
             }else if(!strcasecmp(uri, "/get_stat_generator")){
             }else if(!strcasecmp(uri, "/get_stat_dispatch")){
             }else if(!strcasecmp(uri, "/get_stat_stream")){
+                http_response_json_json(make_json_stat_streams());
             }else if(!strcasecmp(uri, "/get_cpu")){
+                http_response_json_json(make_json_cpu());
             }else if(!strcasecmp(uri, "/get_basic")){
                 http_response_json_json(make_json_basic());
             }else{
