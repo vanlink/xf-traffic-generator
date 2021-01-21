@@ -119,6 +119,39 @@ static void cb_err(void *arg, err_t err)
     }
 }
 
+static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
+{
+    STREAM *stream = (STREAM *)arg;
+    SESSION *session;
+
+    (void)err;
+
+    if(unlikely(!pcb)){
+        // no memory
+        return ERR_ABRT;
+    }
+
+    session = session_get();
+    if(!session){
+        altcp_abort(pcb);
+        return ERR_ABRT;
+    }
+
+    session->pcb = pcb;
+    session->stream = stream;
+
+    altcp_sent(pcb, cb_sent);
+    altcp_recv(pcb, cb_recv);
+    altcp_poll(pcb, NULL, 10U);
+    altcp_err(pcb, cb_err);
+
+    if(stream->stream_session_new){
+        stream->stream_session_new(session, stream, pcb);
+    }
+
+    return ERR_OK;
+}
+
 static int protocol_common_send_one(STREAM *stream, int core)
 {
     SESSION *session = session_get();
@@ -218,5 +251,55 @@ int protocol_common_send(STREAM *stream, int core, uint64_t tsc)
     protocol_common_send_one(stream, core);
 
     return real_cnt;
+}
+
+int protocol_common_listen(STREAM *stream)
+{
+    struct tcp_pcb *pcb;
+    struct altcp_pcb *listenpcb;
+    struct altcp_pcb *listenpcbnew;
+    struct netif *net_if;
+    uint32_t ipv4 = 0;
+
+    str_to_ipv4(stream->listen_ip, &ipv4);
+    net_if = lwip_get_netif_from_ipv4(rte_bswap32(ipv4));
+    if(!net_if){
+        printf("protocol listen ip %s not found.\n", stream->listen_ip);
+        return -1;
+    }
+
+    if(stream->is_tls){
+        listenpcb = altcp_tls_alloc(NULL, IPADDR_TYPE_V4);
+    }else{
+        listenpcb = altcp_new(NULL);
+    }
+    if(!listenpcb){
+        return -1;
+    }
+
+    if(stream->is_tls){
+        pcb = listenpcb->inner_conn ? ((struct altcp_pcb *)listenpcb->inner_conn)->state : NULL;
+    }else{
+        pcb = (struct tcp_pcb *)listenpcb->state;
+    }
+    if(pcb){
+        tcp_bind_netif(pcb, net_if);
+    }
+    if(altcp_bind(listenpcb, &net_if->ip_addr, stream->listen_port) != ERR_OK){
+        printf("protocol listen bind pcb err.\n");
+        return -1;
+    }
+    altcp_arg(listenpcb, stream);
+    listenpcbnew = altcp_listen(listenpcb);
+    if(!listenpcbnew){
+        printf("protocol listen new pcb err.\n");
+        return -1;
+    }
+    altcp_arg(listenpcbnew, stream);
+    altcp_accept(listenpcbnew, cb_accept);
+
+    printf("protocol listen [%s:%d] ok\n", stream->listen_ip, stream->listen_port);
+
+    return 0;
 }
 

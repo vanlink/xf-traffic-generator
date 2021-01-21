@@ -30,6 +30,7 @@ enum {
 typedef struct _STREAM_t STREAM;
 typedef struct _session_info_t SESSION;
 
+typedef int (*STREAM_LISTEN_FUNC)(STREAM *);
 typedef int (*STREAM_SEND_FUNC)(STREAM *, int core, uint64_t tsc);
 typedef int (*STREAM_SESSION_NEW_FUNC)(SESSION *, STREAM *, void *pcb);
 typedef int (*STREAM_CONNECTED_FUNC)(SESSION *, STREAM *, void *pcb);
@@ -48,6 +49,9 @@ typedef struct _STREAM_t {
     int is_tls;
     int close_with_rst;
 
+    char listen_ip[64];
+    uint16_t listen_port;
+
     uint64_t cps;  // conn per second
     uint64_t rpc;  // req per conn
     uint64_t ipr;  // interval per(between) req
@@ -63,6 +67,7 @@ typedef struct _STREAM_t {
     STREAM_REMOTE_CLOSE_FUNC stream_remote_close;
     STREAM_RECV_FUNC stream_recv;
     STREAM_ERR_FUNC stream_err;
+    STREAM_LISTEN_FUNC stream_listen;
 } STREAM;
 
 extern int g_stream_cnt;

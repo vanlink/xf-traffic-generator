@@ -196,6 +196,13 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
 
 int init_stream_http_server(cJSON *json_root, STREAM *stream)
 {
+    stream->http_message_ind = cJSON_GetObjectItem(json_root, "http_message_ind")->valueint;
+
+    strcpy(stream->listen_ip, cJSON_GetObjectItem(json_root, "listen_ip")->valuestring);
+    stream->listen_port = cJSON_GetObjectItem(json_root, "listen_port")->valueint;
+
+    stream->stream_listen = protocol_common_listen;
+
     return 0;
 }
 

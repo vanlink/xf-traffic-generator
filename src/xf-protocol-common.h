@@ -4,6 +4,6 @@
 #include "xf-stream.h"
 
 extern int protocol_common_send(STREAM *stream, int core, uint64_t tsc);
-
+extern int protocol_common_listen(STREAM *stream);
 #endif
 

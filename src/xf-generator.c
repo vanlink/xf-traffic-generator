@@ -397,6 +397,15 @@ static int packet_loop(int seq)
 
     lwip_init_per_core(seq);
 
+    for(i=0;i<g_stream_cnt;i++){
+        stream = g_streams[i];
+        if(stream->stream_listen){
+            if(stream->stream_listen(stream) < 0){
+                rte_exit(EXIT_FAILURE, "stream_listen fail.\n");
+            }
+        }
+    }
+
     while(1){
 
         busy = 0;
