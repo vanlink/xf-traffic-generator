@@ -15,7 +15,7 @@ endif
 
 SRC=xf-generator.c xf-session.c xf-stream.c xf-tools.c xf-network.c xf-address.c xf-protocol-http-msg.c xf-protocol-http.c xf-protocol-common.c
 
-all: xf-generator xf-generator-control
+all: xf-generator xf-generator-control xf-generator-daemon
 
 xf-generator:
 	gcc -g ${OPTIMIZE} ${DEPS} ${INCLUDE} ${LIBS} ${SRC} ${SLIBS} -o xf-generator
@@ -23,5 +23,8 @@ xf-generator:
 xf-generator-control:
 	gcc -g ${OPTIMIZE} ${DEPS} ${INCLUDE} ${LIBS} xf-generator-control.c ${SLIBS} -o xf-generator-control
 
+xf-generator-daemon:
+	gcc -g ${OPTIMIZE} ${DEPS} ${INCLUDE} ${LIBS} xf-generator-daemon.c ${SLIBS} -o xf-generator-daemon
+
 clean:
-	rm -f xf-generator xf-generator-control
+	rm -f xf-generator xf-generator-control xf-generator-daemon
