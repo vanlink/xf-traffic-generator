@@ -99,6 +99,8 @@ static void respond(int n)
     int rcvd;
     rcvd=recv(clientfd, buf, 65535, 0);
 
+    (void)n;
+
     if (rcvd<0)    // receive error
         fprintf(stderr,("recv() error\n"));
     else if (rcvd==0)    // receive socket closed
@@ -186,6 +188,8 @@ static const struct option long_options[] = {
     { 0, 0, 0, 0},
 };
 
+static SHARED_MEM_T *g_sm;
+
 static int cmd_parse_args(int argc, char **argv)
 {
     int opt;
@@ -213,20 +217,98 @@ static int cmd_parse_args(int argc, char **argv)
     return 0;
 }
 
+static void response_404(void)
+{
+    const char * msg= "HTTP/1.1 404 NOT FOUND\r\n\r\n";
+    send(clientfd, msg, strlen(msg), 0);
+}
+
+static void response_json_header(int ct_len)
+{
+    char buff[1024];
+
+    sprintf(buff, "HTTP/1.1 200 OK\r\n");
+    send(clientfd, buff, strlen(buff), 0);
+    sprintf(buff, "Content-Type: application/json\r\n");
+    send(clientfd, buff, strlen(buff), 0);
+    sprintf(buff, "Content-Length: %d\r\n\r\n", ct_len);
+    send(clientfd, buff, strlen(buff), 0);
+}
+
+static void http_response_json_buff(const char *buff)
+{
+    int len = strlen(buff);
+
+    response_json_header(len);
+    send(clientfd, buff, len, 0);
+}
+
+static int http_response_json_json(cJSON *json_root)
+{
+    int ret = 0;
+    const char *jsonstr = cJSON_Print(json_root);
+
+    if(!jsonstr){
+        ret = -1;
+        goto exit;
+    }
+
+    http_response_json_buff(jsonstr);
+
+exit:
+    if(json_root){
+        cJSON_Delete(json_root);
+    }
+    if(jsonstr){
+        free((void *)jsonstr);
+    }
+
+    return ret;
+}
+
+static cJSON *make_json_basic(void)
+{
+    char buff[64];
+    cJSON *json_root = cJSON_CreateObject();
+
+    sprintf(buff, "%lu", g_sm->elapsed_ms);
+    cJSON_AddItemToObject(json_root, "elapsed_ms", cJSON_CreateString(buff));
+
+    cJSON_AddItemToObject(json_root, "pkt_core_cnt", cJSON_CreateNumber(g_sm->pkt_core_cnt));
+    cJSON_AddItemToObject(json_root, "dispatch_core_cnt", cJSON_CreateNumber(g_sm->dispatch_core_cnt));
+    cJSON_AddItemToObject(json_root, "streams_cnt", cJSON_CreateNumber(g_sm->streams_cnt));
+
+    return json_root;
+}
+
 static void route(void)
 {
-    int retval = -1;
+    int retval = 0;
 
     ROUTE_START()
 
     ROUTE_GET("/")
     {
-        
+        if(uri){
+            if(!strcasecmp(uri, "/get_stat_lwip")){
+            }else if(!strcasecmp(uri, "/get_stat_generator")){
+            }else if(!strcasecmp(uri, "/get_stat_dispatch")){
+            }else if(!strcasecmp(uri, "/get_stat_stream")){
+            }else if(!strcasecmp(uri, "/get_cpu")){
+            }else if(!strcasecmp(uri, "/get_basic")){
+                http_response_json_json(make_json_basic());
+            }else{
+                retval = -1;
+            }
+        }
+
+        if(retval < 0){
+            response_404();
+        }
     }
 
     ROUTE_END()
 }
-
 
 int main(int argc, char **argv)
 {
@@ -234,20 +316,32 @@ int main(int argc, char **argv)
 
     if(cmd_parse_args(argc, argv) < 0){
         printf("invalid arg.\n");
-        return -1;
+        ret = -1;
+        goto exit;
     }
 
     printf("daemon u=[%s] port=[%s]\n", unique, listen_port);
 
     if(dkfw_ipc_client_init(unique, 0) < 0){
         printf("dpdk init err.\n");
-        return -1;
+        ret = -1;
+        goto exit;
+    }
+
+    g_sm = (SHARED_MEM_T *)dkfw_global_sharemem_get();
+    if(!g_sm){
+        printf("sm get err.\n");
+        ret = -1;
+        goto exit;
+
     }
 
     printf("===== xf-generator daemon ok =====\n");
     fflush(stdout);
 
     serve_forever(listen_port);
+
+exit:
 
     dkfw_ipc_client_exit();
 
