@@ -140,6 +140,7 @@ static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
     session->pcb = pcb;
     session->stream = stream;
 
+    altcp_arg(pcb, session);
     altcp_sent(pcb, cb_sent);
     altcp_recv(pcb, cb_recv);
     altcp_poll(pcb, NULL, 10U);
