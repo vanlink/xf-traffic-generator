@@ -52,9 +52,11 @@ typedef struct _STREAM_t {
     char listen_ip[64];
     uint16_t listen_port;
 
-    uint64_t cps;  // conn per second
-    uint64_t rpc;  // req per conn
-    uint64_t ipr;  // interval per(between) req
+    uint64_t cps;  // conns per second
+    uint64_t rpc;  // reqs per conn
+    uint64_t ipr;  // interval per req(between reqs), in sec
+
+    uint64_t session_timeout_ms;
 
     DKFW_CPS dkfw_cps[LWIP_CORES_MAX];
 

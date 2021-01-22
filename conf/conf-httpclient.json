@@ -72,7 +72,8 @@
             "http_message_ind":0,
             "cps":1,
             "rpc":1,
-            "ipr":0
+            "ipr":0,
+            "session_timeout":3
         }
     ]
 }
