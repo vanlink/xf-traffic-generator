@@ -216,14 +216,14 @@ def do_log_interface_one(now, filename, ms):
 
 def do_log_interface_rete_one(now, filename, ms, ms_diff):
     data = "%-20s" % (ms)
-    data = data + "%-15.2f" % (now["ipackets"] * 100 / ms_diff)
-    data = data + "%-15.2f" % (now["opackets"] * 100 / ms_diff)
-    data = data + "%-15.2f" % (now["ibits"] * 100 / ms_diff)
-    data = data + "%-15.2f" % (now["obits"] * 100 / ms_diff)
-    data = data + "%-15.2f" % (now["imissed"] * 100 / ms_diff)
-    data = data + "%-15.2f" % (now["ierrors"] * 100 / ms_diff)
-    data = data + "%-15.2f" % (now["oerrors"] * 100 / ms_diff)
-    data = data + "%-15.2f" % (now["rx_nombuf"] * 100 / ms_diff)
+    data = data + "%-15.2f" % (now["ipackets"] * 1000 / ms_diff)
+    data = data + "%-15.2f" % (now["opackets"] * 1000 / ms_diff)
+    data = data + "%-15.2f" % (now["ibits"] * 1000 / ms_diff)
+    data = data + "%-15.2f" % (now["obits"] * 1000 / ms_diff)
+    data = data + "%-15.2f" % (now["imissed"] * 1000 / ms_diff)
+    data = data + "%-15.2f" % (now["ierrors"] * 1000 / ms_diff)
+    data = data + "%-15.2f" % (now["oerrors"] * 1000 / ms_diff)
+    data = data + "%-15.2f" % (now["rx_nombuf"] * 1000 / ms_diff)
     data = data + "\n"
 
     write_log_to_file(filename, data)
