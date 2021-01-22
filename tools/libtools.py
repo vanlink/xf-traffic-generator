@@ -35,6 +35,16 @@ class StatDict(dict):
         for key in StatDict.keys_all(me, oth):
             val_me = me.get(key, 0)
             val_oth = oth.get(key, 0)
+            if key in me and key not in oth:
+                if isinstance(val_me, (str)) and str(val_me).isdigit():
+                    val_me = int(val_me)
+                ret[key] = val_me
+                continue
+            if key not in me and key in oth:
+                if isinstance(val_oth, (str)) and str(val_oth).isdigit():
+                    val_oth = int(val_oth)
+                ret[key] = val_oth
+                continue
             if isinstance(val_me, (str, int)) and isinstance(val_oth, (str, int)) and \
                str(val_me).isdigit() and str(val_oth).isdigit():
                 if to_add:
