@@ -15,6 +15,7 @@
 #include <rte_common.h>
 #include <rte_launch.h>
 #include <rte_memory.h>
+#include <rte_ethdev.h>
 
 #include "cjson/cJSON.h"
 
@@ -277,6 +278,7 @@ static cJSON *make_json_basic(void)
     cJSON_AddItemToObject(json_root, "pkt_core_cnt", cJSON_CreateNumber(g_sm->pkt_core_cnt));
     cJSON_AddItemToObject(json_root, "dispatch_core_cnt", cJSON_CreateNumber(g_sm->dispatch_core_cnt));
     cJSON_AddItemToObject(json_root, "streams_cnt", cJSON_CreateNumber(g_sm->streams_cnt));
+    cJSON_AddItemToObject(json_root, "interface_cnt", cJSON_CreateNumber(g_sm->interface_cnt));
 
     return json_root;
 }
@@ -327,6 +329,45 @@ static cJSON *make_json_stat_streams(void)
     return json_root;
 }
 
+static cJSON *make_json_interfaces(void)
+{
+     char buff[64];
+    cJSON *json_root = cJSON_CreateObject();
+    cJSON *json_array = cJSON_CreateArray();
+    int i;
+    struct rte_eth_stats port_stats;
+    cJSON *json_item;
+
+    sprintf(buff, "%lu", g_sm->elapsed_ms);
+    cJSON_AddItemToObject(json_root, "elapsed_ms", cJSON_CreateString(buff));
+
+    for(i=0;i<g_sm->interface_cnt;i++){
+        memset(&port_stats, 0, sizeof(port_stats));
+        rte_eth_stats_get(i, &port_stats);
+        json_item = cJSON_CreateObject();
+        sprintf(buff, "%lu", port_stats.ipackets);
+        cJSON_AddItemToObject(json_item, "ipackets", cJSON_CreateString(buff));
+        sprintf(buff, "%lu", port_stats.opackets);
+        cJSON_AddItemToObject(json_item, "opackets", cJSON_CreateString(buff));
+        sprintf(buff, "%lu", port_stats.ibytes * 8);
+        cJSON_AddItemToObject(json_item, "ibits", cJSON_CreateString(buff));
+        sprintf(buff, "%lu", port_stats.obytes * 8);
+        cJSON_AddItemToObject(json_item, "obits", cJSON_CreateString(buff));
+        sprintf(buff, "%lu", port_stats.imissed);
+        cJSON_AddItemToObject(json_item, "imissed", cJSON_CreateString(buff));
+        sprintf(buff, "%lu", port_stats.ierrors);
+        cJSON_AddItemToObject(json_item, "ierrors", cJSON_CreateString(buff));
+        sprintf(buff, "%lu", port_stats.oerrors);
+        cJSON_AddItemToObject(json_item, "oerrors", cJSON_CreateString(buff));
+        sprintf(buff, "%lu", port_stats.rx_nombuf);
+        cJSON_AddItemToObject(json_item, "rx_nombuf", cJSON_CreateString(buff));
+        cJSON_AddItemToArray(json_array, json_item);
+    }
+    cJSON_AddItemToObject(json_root, "interfaces", json_array);
+
+    return json_root;
+}
+
 static void route(void)
 {
     int retval = 0;
@@ -345,6 +386,8 @@ static void route(void)
                 http_response_json_json(make_json_cpu());
             }else if(!strcasecmp(uri, "/get_basic")){
                 http_response_json_json(make_json_basic());
+            }else if(!strcasecmp(uri, "/get_interface")){
+                http_response_json_json(make_json_interfaces());
             }else{
                 retval = -1;
             }

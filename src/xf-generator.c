@@ -749,6 +749,7 @@ int main(int argc, char **argv)
 
     g_generator_shared_mem->pkt_core_cnt = g_pkt_process_core_num;
     g_generator_shared_mem->dispatch_core_cnt = g_pkt_distribute_core_num;
+    g_generator_shared_mem->interface_cnt = g_dkfw_interfaces_num;
 
     if(init_pktmbuf_pool() < 0){
         ret = -1;

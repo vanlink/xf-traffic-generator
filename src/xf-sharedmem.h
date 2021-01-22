@@ -14,6 +14,7 @@ typedef struct _SHARED_MEM_TAG {
     int pkt_core_cnt;
     int dispatch_core_cnt;
     int streams_cnt;
+    int interface_cnt;
 
     uint64_t elapsed_ms;
 

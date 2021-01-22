@@ -19,12 +19,23 @@ DIR_UNIQUE = None
 PACKET_CORE_CNT = 1
 DISPATCH_CORE_CNT = 1
 STREAM_CNT = 1
+INTERFACE_CNT = 1
 
 CPU_PACKET_LAST = [None] * 64
 CPU_DISPATCH_LAST = [None] * 64
 
 STATS_STREAM_LAST = None
 STATS_STREAM_SUM_LAST = [None] * 64
+
+STATS_INTERFACES_LAST = None
+
+def get_log_filename_interface(seq):
+    filename = "interface-%s.stat" % (seq)
+    return os.path.join(DIR_UNIQUE, filename)
+
+def get_log_filename_interface_rate(seq):
+    filename = "interface-%s-rate.stat" % (seq)
+    return os.path.join(DIR_UNIQUE, filename)
 
 def get_log_filename_packet_cpu(seq):
     filename = "cpu-packet-%s.stat" % (seq)
@@ -189,6 +200,40 @@ def do_log_stream():
             do_log_stream_core_rete_one(sum_diff, filename, ms, ms_diff)
         STATS_STREAM_SUM_LAST[stream_ind] = StatDict(stream_sum_now)
 
+def do_log_interface_one(now, filename, ms):
+    data = "%-20s" % (ms)
+    data = data + "%-15s" % (now["ipackets"])
+    data = data + "%-15s" % (now["opackets"])
+    data = data + "%-15s" % (now["ibits"])
+    data = data + "%-15s" % (now["obits"])
+    data = data + "%-15s" % (now["imissed"])
+    data = data + "%-15s" % (now["ierrors"])
+    data = data + "%-15s" % (now["oerrors"])
+    data = data + "%-15s" % (now["rx_nombuf"])
+    data = data + "\n"
+
+    write_log_to_file(filename, data)
+
+def do_log_interfaces():
+    global STATS_INTERFACES_LAST
+    r = get_dict_from_url("/get_interface")
+    if not r:
+        return
+    
+    if not STATS_INTERFACES_LAST:
+        STATS_INTERFACES_LAST = r
+        return
+
+    ms = r["elapsed_ms"]
+    ms_diff = int(ms) - int(STATS_INTERFACES_LAST["elapsed_ms"])
+    
+    for intf_ind in range(0, INTERFACE_CNT):
+        filename = get_log_filename_interface(intf_ind)
+        now = r["interfaces"][intf_ind]
+        do_log_interface_one(now, filename, ms)
+
+    STATS_INTERFACES_LAST = r
+
 # ------------------------------ main ------------------------------
 if __name__ != '__main__':
     sys.exit(0)
@@ -226,8 +271,9 @@ r = get_dict_from_url("/get_basic")
 PACKET_CORE_CNT = r["pkt_core_cnt"]
 DISPATCH_CORE_CNT = r["dispatch_core_cnt"]
 STREAM_CNT = r["streams_cnt"]
+INTERFACE_CNT = r["interface_cnt"]
 
-print("pkt=[%s] dispatch=[%s] stream=[%s]" % (PACKET_CORE_CNT, DISPATCH_CORE_CNT, STREAM_CNT))
+print("pkt=[%s] dispatch=[%s] stream=[%s] interface=[%s]" % (PACKET_CORE_CNT, DISPATCH_CORE_CNT, STREAM_CNT, INTERFACE_CNT))
 
 cnt = 0
 while True:
@@ -236,3 +282,4 @@ while True:
     if cnt % 5 == 0:
         do_log_cpu()
         do_log_stream()
+        do_log_interfaces()
