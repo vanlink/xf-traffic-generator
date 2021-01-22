@@ -92,6 +92,8 @@ static const struct option long_options[] = {
 
 SHARED_MEM_T *g_generator_shared_mem = NULL;
 
+tvec_base_t *g_generator_timer_bases;
+
 static int cmd_parse_args(int argc, char **argv)
 {
     int opt;
@@ -432,6 +434,8 @@ static int packet_loop(int seq)
             elapsed_ms_last = *g_elapsed_ms;
             
             sys_check_timeouts(*g_elapsed_ms);
+
+            dkfw_run_timer(&g_generator_timer_bases[seq], *g_elapsed_ms);
         }
 
         time_0 = rte_rdtsc();
@@ -792,6 +796,11 @@ int main(int argc, char **argv)
     }
 
     init_protocol_http();
+
+    g_generator_timer_bases = rte_zmalloc(NULL, sizeof(tvec_base_t) * g_pkt_process_core_num, RTE_CACHE_LINE_SIZE);
+    for(i=0;i<g_pkt_process_core_num;i++){
+        dkfw_init_timers(&g_generator_timer_bases[i], *g_elapsed_ms);
+    }
 
     printf("config done.\n");
 
