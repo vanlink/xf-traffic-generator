@@ -10,7 +10,8 @@ typedef struct _session_info_t {
     uint32_t proto_state :4,
              msg_ind     :7,
              response_ok :1,
-             spare1      :20;
+             msgs_left   :8,
+             spare1      :12;
 
     const char *msg;
     uint32_t msg_len;

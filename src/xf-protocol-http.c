@@ -34,6 +34,14 @@
 static llhttp_settings_t llhttp_settings_request;
 static llhttp_settings_t llhttp_settings_response;
 
+static void http_session_msg_next(SESSION *session, STREAM *stream)
+{
+    int msg_ind = session->msg_ind;
+
+    session->msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len);
+    session->msg_ind = msg_ind;
+}
+
 static int http_close_session(SESSION *session, struct altcp_pcb *pcb, int abort)
 {
     if(pcb) {
@@ -51,6 +59,30 @@ static int http_close_session(SESSION *session, struct altcp_pcb *pcb, int abort
     }
 
     session_free(session);
+
+    return 0;
+}
+
+static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
+{
+    uint32_t room = altcp_sndbuf(pcb);
+    uint32_t send_cnt;
+    err_t err;
+
+    send_cnt = RTE_MIN(room, session->msg_len);
+    if(send_cnt){
+        err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+        if (err !=  ERR_OK) {
+            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
+            return -1;
+        }
+        session->msg_len -= send_cnt;
+        if(!session->msg_len){
+            STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_REQUEST);
+            session->proto_state = HTTP_STATE_RSP;
+            session->msgs_left--;
+        }
+    }
 
     return 0;
 }
@@ -87,9 +119,10 @@ static int llhttp_on_request_complete(llhttp_t *llhttp)
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_REQUEST);
     session->proto_state = HTTP_STATE_RSP;
 
+    http_session_msg_next(session, stream);
     if(http_server_send_data(session, stream, pcb) < 0){
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
-        http_close_session(session, pcb, stream->close_with_rst);
+        http_close_session(session, pcb, 1);
     }
 
     return HPE_OK;
@@ -103,54 +136,28 @@ static int llhttp_on_response_complete(llhttp_t *llhttp)
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_RESPONSE);
 
-    session->response_ok = 1;
-
     if(session->proto_state == HTTP_STATE_RSP){
-        altcp_output(pcb);
-        http_close_session(session, pcb, stream->close_with_rst);
-        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
+        if(session->msgs_left){
+            session->proto_state = HTTP_STATE_REQ;
+            http_session_msg_next(session, stream);
+            if(http_client_send_data(session, stream, pcb) < 0){
+                STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
+                http_close_session(session, pcb, 1);
+            }
+        }else{
+            altcp_output(pcb);
+            http_close_session(session, pcb, stream->close_with_rst);
+            STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
+        }
     }
 
     return HPE_OK;
 }
 
-static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
-{
-    uint32_t room = altcp_sndbuf(pcb);
-    uint32_t send_cnt;
-    err_t err;
-
-    send_cnt = RTE_MIN(room, session->msg_len);
-    if(send_cnt){
-        err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
-        if (err !=  ERR_OK) {
-            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
-            return -1;
-        }
-        session->msg_len -= send_cnt;
-        if(!session->msg_len){
-            STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_REQUEST);
-            session->proto_state = HTTP_STATE_RSP;
-            // server responsed early.
-            if(session->response_ok){
-                altcp_output(pcb);
-                http_close_session(session, pcb, stream->close_with_rst);
-                STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
-            }
-        }
-    }
-
-    return 0;
-}
-
 static int protocol_http_client_connecned(SESSION *session, STREAM *stream, void *pcb)
 {
-    int msg_ind = session->msg_ind;
-
     session->proto_state = HTTP_STATE_REQ;
-    session->response_ok = 0;
-    session->msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len);
-    session->msg_ind = msg_ind;
+    http_session_msg_next(session, stream);
 
     return http_client_send_data(session, stream, pcb);
 }
@@ -174,6 +181,11 @@ static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, v
 
 static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb, char *data, int datalen)
 {
+    if(session->proto_state != HTTP_STATE_RSP){
+        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_DATA_EARLY);
+        return -1;
+    }
+
     if(HPE_OK != llhttp_execute(&session->http_parser, data, datalen)){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL);
         return -1;
@@ -192,6 +204,7 @@ static int protocol_http_client_session_new(SESSION *session, STREAM *stream, vo
 {
     llhttp_init(&session->http_parser, HTTP_RESPONSE, &llhttp_settings_response);
     session->http_parser.data = session;
+    session->msgs_left = stream->rpc;
 
     return 0;
 }
@@ -216,6 +229,7 @@ static int protocol_http_server_remote_close(SESSION *session, STREAM *stream, v
 static int protocol_http_server_recv(SESSION *session, STREAM *stream, void *pcb, char *data, int datalen)
 {
     if(session->proto_state != HTTP_STATE_REQ){
+        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL);
         return -1;
     }
 
@@ -235,13 +249,9 @@ static int protocol_http_server_err(SESSION *session, STREAM *stream)
 
 static int protocol_http_server_session_new(SESSION *session, STREAM *stream, void *pcb)
 {
-    int msg_ind = session->msg_ind;
-
     llhttp_init(&session->http_parser, HTTP_REQUEST, &llhttp_settings_request);
     session->http_parser.data = session;
     session->proto_state = HTTP_STATE_REQ;
-    session->msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len);
-    session->msg_ind = msg_ind;
 
     return 0;
 }
@@ -256,7 +266,9 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     stream->http_message_ind = cJSON_GetObjectItem(json_root, "http_message_ind")->valueint;
 
     stream->cps = cJSON_GetObjectItem(json_root, "cps")->valueint;
+    stream->cps = stream->cps ? stream->cps : 1;
     stream->rpc = cJSON_GetObjectItem(json_root, "rpc")->valueint;
+    stream->rpc = stream->rpc ? stream->rpc : 1;
     stream->ipr = cJSON_GetObjectItem(json_root, "ipr")->valueint;
 
     for(i=0;i<g_lwip_core_cnt;i++){

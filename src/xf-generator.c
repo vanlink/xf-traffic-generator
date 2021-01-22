@@ -611,6 +611,7 @@ static int init_generator_stats(void *addr)
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_LOCAL_PORT_EMPTY, DKFW_STATS_TYPE_NUM, "port-empty");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_WRITE_FAIL, DKFW_STATS_TYPE_NUM, "tcp-write-fail");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL, DKFW_STATS_TYPE_NUM, "http-parse-fail");
+    dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_PROTOCOL_DATA_EARLY, DKFW_STATS_TYPE_NUM, "data-early");
     dkfw_stats_add_item(g_generator_stats, GENERATOR_STATS_SESSION, DKFW_STATS_TYPE_RESOURCE_POOL, "session");
 
     return 0;
