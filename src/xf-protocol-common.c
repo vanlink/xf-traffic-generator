@@ -66,6 +66,7 @@ static err_t cb_recv(void *arg, struct altcp_pcb *tpcb, struct pbuf *p, err_t er
     (void)err;
 
     if(!p){
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_REMOTE_FIN);
         if(stream->stream_remote_close){
             if(stream->stream_remote_close(session, stream, tpcb) < 0){
                 return ERR_ABRT;
@@ -126,6 +127,8 @@ static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
 
     (void)err;
 
+    STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_ATTEMP);
+
     if(unlikely(!pcb)){
         // no memory
         return ERR_ABRT;
@@ -149,6 +152,8 @@ static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
     if(stream->stream_session_new){
         stream->stream_session_new(session, stream, pcb);
     }
+
+    STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_SUCC);
 
     return ERR_OK;
 }

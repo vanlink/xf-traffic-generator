@@ -71,13 +71,12 @@ static int http_server_send_data(SESSION *session, STREAM *stream, void *pcb)
         session->msg_len -= send_cnt;
         if(!session->msg_len){
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_RESPONSE);
-            session->proto_state = HTTP_STATE_RSP;
+            session->proto_state = HTTP_STATE_REQ;
         }
     }
 
     return 0;
 }
-
 
 static int llhttp_on_request_complete(llhttp_t *llhttp)
 {
@@ -89,6 +88,7 @@ static int llhttp_on_request_complete(llhttp_t *llhttp)
     session->proto_state = HTTP_STATE_RSP;
 
     if(http_server_send_data(session, stream, pcb) < 0){
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
         http_close_session(session, pcb, stream->close_with_rst);
     }
 
@@ -168,7 +168,6 @@ static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, v
 {
     altcp_output(pcb);
     http_close_session(session, pcb, stream->close_with_rst);
-    STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_REMOTE_FIN);
 
     return 0;
 }
@@ -199,18 +198,17 @@ static int protocol_http_client_session_new(SESSION *session, STREAM *stream, vo
 
 static int protocol_http_server_sent(SESSION *session, STREAM *stream, void *pcb, uint16_t sent_len)
 {
-    if(session->proto_state != HTTP_STATE_REQ){
+    if(session->proto_state != HTTP_STATE_RSP){
         return 0;
     }
 
-    return http_client_send_data(session, stream, pcb);
+    return http_server_send_data(session, stream, pcb);
 }
 
 static int protocol_http_server_remote_close(SESSION *session, STREAM *stream, void *pcb)
 {
     altcp_output(pcb);
     http_close_session(session, pcb, stream->close_with_rst);
-    STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_REMOTE_FIN);
 
     return 0;
 }
