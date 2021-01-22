@@ -42,14 +42,7 @@
     "http_messages":[
         {
             "messages":[
-                { "path":"/req.txt"},
-                { "path":"/req.txt"}
-            ]
-        },
-        {
-            "messages":[
                 { "path":"/rsp.txt"},
-                { "path":"/rsp.txt"}
             ]
         }
     ],
@@ -57,7 +50,7 @@
     "streams":[
         {
             "type":"httpserver",
-            "http_message_ind":1,
+            "http_message_ind":0,
             "listen_ip":"192.168.1.100",
             "listen_port":80
         }
