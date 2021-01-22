@@ -214,6 +214,20 @@ def do_log_interface_one(now, filename, ms):
 
     write_log_to_file(filename, data)
 
+def do_log_interface_rete_one(now, filename, ms, ms_diff):
+    data = "%-20s" % (ms)
+    data = data + "%-15.2f" % (now["ipackets"] * 100 / ms_diff)
+    data = data + "%-15.2f" % (now["opackets"] * 100 / ms_diff)
+    data = data + "%-15.2f" % (now["ibits"] * 100 / ms_diff)
+    data = data + "%-15.2f" % (now["obits"] * 100 / ms_diff)
+    data = data + "%-15.2f" % (now["imissed"] * 100 / ms_diff)
+    data = data + "%-15.2f" % (now["ierrors"] * 100 / ms_diff)
+    data = data + "%-15.2f" % (now["oerrors"] * 100 / ms_diff)
+    data = data + "%-15.2f" % (now["rx_nombuf"] * 100 / ms_diff)
+    data = data + "\n"
+
+    write_log_to_file(filename, data)
+
 def do_log_interfaces():
     global STATS_INTERFACES_LAST
     r = get_dict_from_url("/get_interface")
@@ -231,6 +245,11 @@ def do_log_interfaces():
         filename = get_log_filename_interface(intf_ind)
         now = r["interfaces"][intf_ind]
         do_log_interface_one(now, filename, ms)
+        
+        last = STATS_INTERFACES_LAST["interfaces"][intf_ind]
+        diff = StatDict(now) - StatDict(last)
+        filename = get_log_filename_interface_rate(intf_ind)
+        do_log_interface_rete_one(diff, filename, ms, ms_diff)
 
     STATS_INTERFACES_LAST = r
 
