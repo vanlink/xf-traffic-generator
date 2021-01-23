@@ -141,9 +141,6 @@ static int http_client_next_msg_check(SESSION *session, STREAM *stream, void *pc
         session->proto_state = HTTP_STATE_REQ;
         http_session_msg_next(session, stream);
 
-        llhttp_init(&session->http_parser, HTTP_RESPONSE, &llhttp_settings_response);
-        session->http_parser.data = session;
-
         if(http_client_send_data(session, stream, pcb) < 0){
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
             http_close_session(session, pcb, 1);
@@ -186,7 +183,7 @@ static int protocol_http_client_connecned(SESSION *session, STREAM *stream, void
 {
     session->proto_state = HTTP_STATE_REQ;
     http_session_msg_next(session, stream);
-    
+
     llhttp_init(&session->http_parser, HTTP_RESPONSE, &llhttp_settings_response);
     session->http_parser.data = session;
 
