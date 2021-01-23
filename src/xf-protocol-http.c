@@ -81,9 +81,9 @@ static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
         }
-        altcp_output(pcb);
         session->msg_len -= send_cnt;
         if(!session->msg_len){
+            altcp_output(pcb);
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_REQUEST);
             session->proto_state = HTTP_STATE_RSP;
             session->msgs_left--;
@@ -106,12 +106,30 @@ static int http_server_send_data(SESSION *session, STREAM *stream, void *pcb)
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
         }
-        altcp_output(pcb);
         session->msg_len -= send_cnt;
         if(!session->msg_len){
+            altcp_output(pcb);
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_RESPONSE);
             session->proto_state = HTTP_STATE_REQ;
         }
+    }
+
+    return 0;
+}
+
+static int http_client_next_msg_check(SESSION *session, STREAM *stream, void *pcb)
+{
+    if(session->msgs_left){
+        session->proto_state = HTTP_STATE_REQ;
+        http_session_msg_next(session, stream);
+
+        if(http_client_send_data(session, stream, pcb) < 0){
+            STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
+            http_close_session(session, pcb, 1);
+        }
+    }else{
+        http_close_session(session, pcb, stream->close_with_rst);
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
     }
 
     return 0;
@@ -135,24 +153,6 @@ static int llhttp_on_request_complete(llhttp_t *llhttp)
     return HPE_OK;
 }
 
-static int http_client_next_msg_check(SESSION *session, STREAM *stream, void *pcb)
-{
-    if(session->msgs_left){
-        session->proto_state = HTTP_STATE_REQ;
-        http_session_msg_next(session, stream);
-
-        if(http_client_send_data(session, stream, pcb) < 0){
-            STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
-            http_close_session(session, pcb, 1);
-        }
-    }else{
-        http_close_session(session, pcb, stream->close_with_rst);
-        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
-    }
-
-    return 0;
-}
-
 static int llhttp_on_response_complete(llhttp_t *llhttp)
 {
     SESSION *session = llhttp->data;
@@ -160,6 +160,7 @@ static int llhttp_on_response_complete(llhttp_t *llhttp)
     struct altcp_pcb *pcb = (struct altcp_pcb *)session->pcb;
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_RESPONSE);
+    altcp_output(pcb);
 
     if(!session->timer_msg_interval_onfly){
         http_client_next_msg_check(session, stream, pcb);
