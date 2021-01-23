@@ -58,6 +58,11 @@ static int http_close_session(SESSION *session, struct altcp_pcb *pcb, int abort
         }
     }
 
+    if(session->timer_msg_interval_onfly){
+        dkfw_stop_timer(&session->timer_msg_interval);
+        GENERATOR_STATS_PAIR_STOP_INC(GENERATOR_STATS_TIMER_MSG_INTERVAL);
+    }
+
     session_free(session);
 
     return 0;
@@ -76,6 +81,7 @@ static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
         }
+        altcp_output(pcb);
         session->msg_len -= send_cnt;
         if(!session->msg_len){
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_REQUEST);
@@ -100,6 +106,7 @@ static int http_server_send_data(SESSION *session, STREAM *stream, void *pcb)
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
         }
+        altcp_output(pcb);
         session->msg_len -= send_cnt;
         if(!session->msg_len){
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_RESPONSE);
@@ -128,6 +135,27 @@ static int llhttp_on_request_complete(llhttp_t *llhttp)
     return HPE_OK;
 }
 
+static int http_client_next_msg_check(SESSION *session, STREAM *stream, void *pcb)
+{
+    if(session->msgs_left){
+        session->proto_state = HTTP_STATE_REQ;
+        http_session_msg_next(session, stream);
+
+        llhttp_init(&session->http_parser, HTTP_RESPONSE, &llhttp_settings_response);
+        session->http_parser.data = session;
+
+        if(http_client_send_data(session, stream, pcb) < 0){
+            STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
+            http_close_session(session, pcb, 1);
+        }
+    }else{
+        http_close_session(session, pcb, stream->close_with_rst);
+        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
+    }
+
+    return 0;
+}
+
 static int llhttp_on_response_complete(llhttp_t *llhttp)
 {
     SESSION *session = llhttp->data;
@@ -136,17 +164,8 @@ static int llhttp_on_response_complete(llhttp_t *llhttp)
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_RESPONSE);
 
-    if(session->msgs_left){
-        session->proto_state = HTTP_STATE_REQ;
-        http_session_msg_next(session, stream);
-        if(http_client_send_data(session, stream, pcb) < 0){
-            STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
-            http_close_session(session, pcb, 1);
-        }
-    }else{
-        altcp_output(pcb);
-        http_close_session(session, pcb, stream->close_with_rst);
-        STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
+    if(!session->timer_msg_interval_onfly){
+        http_client_next_msg_check(session, stream, pcb);
     }
 
     return HPE_OK;
@@ -158,17 +177,23 @@ static void timer_func_http_client_msg(struct timer_list *timer, unsigned long a
     STREAM *stream = session->stream;
     struct altcp_pcb *pcb = (struct altcp_pcb *)session->pcb;
 
-    // Call timer first, later timer may be detatched.
     dkfw_restart_timer(&g_generator_timer_bases[LWIP_MY_CPUID], timer, *g_elapsed_ms + stream->ipr * 1000);
+
+    http_client_next_msg_check(session, stream, pcb);
 }
 
 static int protocol_http_client_connecned(SESSION *session, STREAM *stream, void *pcb)
 {
     session->proto_state = HTTP_STATE_REQ;
     http_session_msg_next(session, stream);
+    
+    llhttp_init(&session->http_parser, HTTP_RESPONSE, &llhttp_settings_response);
+    session->http_parser.data = session;
+
     if(stream->ipr){
         dkfw_start_timer(&g_generator_timer_bases[LWIP_MY_CPUID], &session->timer_msg_interval, timer_func_http_client_msg, session, *g_elapsed_ms + stream->ipr * 1000);
         session->timer_msg_interval_onfly = 1;
+        GENERATOR_STATS_PAIR_START_INC(GENERATOR_STATS_TIMER_MSG_INTERVAL);
     }
 
     return http_client_send_data(session, stream, pcb);
@@ -185,7 +210,6 @@ static int protocol_http_client_sent(SESSION *session, STREAM *stream, void *pcb
 
 static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, void *pcb)
 {
-    altcp_output(pcb);
     http_close_session(session, pcb, stream->close_with_rst);
 
     return 0;
@@ -214,8 +238,6 @@ static int protocol_http_client_err(SESSION *session, STREAM *stream)
 
 static int protocol_http_client_session_new(SESSION *session, STREAM *stream, void *pcb)
 {
-    llhttp_init(&session->http_parser, HTTP_RESPONSE, &llhttp_settings_response);
-    session->http_parser.data = session;
     session->msgs_left = stream->rpc;
 
     return 0;
@@ -232,7 +254,6 @@ static int protocol_http_server_sent(SESSION *session, STREAM *stream, void *pcb
 
 static int protocol_http_server_remote_close(SESSION *session, STREAM *stream, void *pcb)
 {
-    altcp_output(pcb);
     http_close_session(session, pcb, stream->close_with_rst);
 
     return 0;
@@ -271,7 +292,8 @@ static int protocol_http_server_session_new(SESSION *session, STREAM *stream, vo
 int init_stream_http_client(cJSON *json_root, STREAM *stream)
 {
     int i;
-    uint64_t cps;
+    uint64_t value;
+    cJSON *json_item;
 
     stream->local_address_ind = cJSON_GetObjectItem(json_root, "local_address_ind")->valueint;
     stream->remote_address_ind = cJSON_GetObjectItem(json_root, "remote_address_ind")->valueint;
@@ -285,12 +307,18 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
 
     stream->session_timeout_ms = cJSON_GetObjectItem(json_root, "session_timeout")->valueint * 1000;
 
+    json_item = cJSON_GetObjectItem(json_root, "conn_max_send");
+
     for(i=0;i<g_lwip_core_cnt;i++){
-        cps = stream->cps / g_lwip_core_cnt;
+        value = stream->cps / g_lwip_core_cnt;
         if(i < (int)(stream->cps % g_lwip_core_cnt)){
-            cps++;
+            value++;
         }
-        dkfw_cps_create(&stream->dkfw_cps[i], cps, tsc_per_sec);
+        dkfw_cps_create(&stream->dkfw_cps[i], value, tsc_per_sec);
+
+        if(json_item && json_item->valueint){
+            stream->dkfw_cps[i].send_cnt_max = json_item->valueint;
+        }
     }
 
     stream->stream_send = protocol_common_send;
