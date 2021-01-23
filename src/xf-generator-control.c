@@ -63,10 +63,7 @@ static int do_stat(void)
     cJSON *json_root;
     char *str;
     char buff[64];
-    cJSON *json_array;
-    int i;
-    DKFW_PROFILE *profiler;
-    
+
     sm = (SHARED_MEM_T *)dkfw_global_sharemem_get();
     if(!sm){
         printf("sm get err.\n");
@@ -76,36 +73,13 @@ static int do_stat(void)
     json_root = cJSON_CreateObject();
     sprintf(buff, "%lu", sm->elapsed_ms);
     cJSON_AddItemToObject(json_root, "elapsed_ms", cJSON_CreateString(buff));
-    
-    cJSON_AddItemToObject(json_root, "pkt_core_cnt", cJSON_CreateNumber(sm->pkt_core_cnt));
-    cJSON_AddItemToObject(json_root, "dispatch_core_cnt", cJSON_CreateNumber(sm->dispatch_core_cnt));
-    cJSON_AddItemToObject(json_root, "streams_cnt", cJSON_CreateNumber(sm->streams_cnt));
-    
+
     cJSON_AddItemToObject(json_root, "lwip", dkfw_stats_to_json(&sm->stats_lwip));
     cJSON_AddItemToObject(json_root, "generator", dkfw_stats_to_json(&sm->stats_generator));
     cJSON_AddItemToObject(json_root, "dispatch", dkfw_stats_to_json(&sm->stats_dispatch));
 
-    for(i=0;i<sm->streams_cnt;i++){
-        sprintf(buff, "stream_stats_%d", i);
-        cJSON_AddItemToObject(json_root, buff, dkfw_stats_to_json(&sm->stats_streams[i].stats_stream));
-    }
-
-    json_array = cJSON_CreateArray();
-    for(i=0;i<sm->pkt_core_cnt;i++){
-        profiler = &sm->profile_pkt[i];
-        cJSON_AddItemToArray(json_array, dkfw_profile_to_json(profiler));
-    }
-    cJSON_AddItemToObject(json_root, "profile_pkt", json_array);
-
-    json_array = cJSON_CreateArray();
-    for(i=0;i<sm->dispatch_core_cnt;i++){
-        profiler = &sm->profile_dispatch[i];
-        cJSON_AddItemToArray(json_array, dkfw_profile_to_json(profiler));
-    }
-    cJSON_AddItemToObject(json_root, "profile_dispatch", json_array);
-
     str = cJSON_Print(json_root);
-    
+
     printf("%s", str);
     free(str);
     cJSON_Delete(json_root);
