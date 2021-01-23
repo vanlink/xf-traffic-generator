@@ -368,6 +368,39 @@ static cJSON *make_json_interfaces(void)
     return json_root;
 }
 
+static cJSON *make_json_stat_lwip(void)
+{
+    char buff[64];
+    cJSON *json_root = dkfw_stats_to_json(&g_sm->stats_lwip);
+
+    sprintf(buff, "%lu", g_sm->elapsed_ms);
+    cJSON_AddItemToObject(json_root, "elapsed_ms", cJSON_CreateString(buff));
+
+    return json_root;
+}
+
+static cJSON *make_json_stat_generator(void)
+{
+    char buff[64];
+    cJSON *json_root = dkfw_stats_to_json(&g_sm->stats_generator);
+
+    sprintf(buff, "%lu", g_sm->elapsed_ms);
+    cJSON_AddItemToObject(json_root, "elapsed_ms", cJSON_CreateString(buff));
+
+    return json_root;
+}
+
+static cJSON *make_json_stat_dispatch(void)
+{
+    char buff[64];
+    cJSON *json_root = dkfw_stats_to_json(&g_sm->stats_dispatch);
+
+    sprintf(buff, "%lu", g_sm->elapsed_ms);
+    cJSON_AddItemToObject(json_root, "elapsed_ms", cJSON_CreateString(buff));
+
+    return json_root;
+}
+
 static void route(void)
 {
     int retval = 0;
@@ -378,8 +411,11 @@ static void route(void)
     {
         if(uri){
             if(!strcasecmp(uri, "/get_stat_lwip")){
+                http_response_json_json(make_json_stat_lwip());
             }else if(!strcasecmp(uri, "/get_stat_generator")){
+                http_response_json_json(make_json_stat_generator());
             }else if(!strcasecmp(uri, "/get_stat_dispatch")){
+                http_response_json_json(make_json_stat_dispatch());
             }else if(!strcasecmp(uri, "/get_stat_stream")){
                 http_response_json_json(make_json_stat_streams());
             }else if(!strcasecmp(uri, "/get_cpu")){
