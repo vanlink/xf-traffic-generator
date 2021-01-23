@@ -259,7 +259,7 @@ static int protocol_http_server_remote_close(SESSION *session, STREAM *stream, v
 static int protocol_http_server_recv(SESSION *session, STREAM *stream, void *pcb, char *data, int datalen)
 {
     if(session->proto_state != HTTP_STATE_REQ){
-        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL);
+        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_DATA_EARLY);
         return -1;
     }
 
