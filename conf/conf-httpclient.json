@@ -70,10 +70,13 @@
             "local_address_ind":0,
             "remote_address_ind":0,
             "http_message_ind":0,
+
             "cps":1,
             "rpc":1,
             "ipr":0,
-            "session_timeout":3
+            "conn_max_send":0,
+
+            "session_timeout":32
         }
     ]
 }

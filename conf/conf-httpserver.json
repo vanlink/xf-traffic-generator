@@ -42,7 +42,7 @@
     "http_messages":[
         {
             "messages":[
-                { "path":"/rsp.txt"},
+                { "path":"/rsp.txt"}
             ]
         }
     ],
