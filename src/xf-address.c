@@ -104,10 +104,10 @@ int init_addresses(cJSON *json_root)
         }
 
         str = cJSON_GetObjectItem(json_array_item, "type")->valuestring;
-        if(strstr(str, "ip")){
-            local_address->type = LOCAL_ADDRESS_TYPE_IP_RR;
-        }else{
+        if(strstr(str, "port")){
             local_address->type = LOCAL_ADDRESS_TYPE_PORT_RR;
+        }else{
+            local_address->type = LOCAL_ADDRESS_TYPE_IP_RR;
         }
         for(i=0;i<g_lwip_core_cnt;i++){
             local_address_one = &local_address->addresses[i];
