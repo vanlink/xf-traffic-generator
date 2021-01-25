@@ -122,3 +122,81 @@ class StatDict(dict):
                 self[key] = int(StatDict(val))
             elif isinstance(val, list):
                 ret[key] = list(map(lambda x :StatDict(x) * divnum,val_me))
+
+def run_cmd_wrapper(cmd, check_interval=0.5, timeout=10, asyncdo=False):
+    ret = -1
+    fin = None
+    outstr = ""
+    errstr = ""
+
+    toreal = int(timeout / check_interval)
+
+    p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if asyncdo:
+        return p
+
+    time.sleep(check_interval)
+    for _ in range(toreal):
+        fin = p.poll()
+        if fin is not None:
+            break
+        time.sleep(check_interval)
+
+    if fin is None:
+        errstr = "[wrapper] cmd [%s] not finish." % cmd
+        try:
+            p.kill()
+        except:
+            pass
+        try:
+            p.terminate()
+        except:
+            pass
+    else:
+        ret = fin
+        if p.stdout:
+            outstr = p.stdout.read()
+        if p.stderr:
+            errstr = p.stderr.read()
+
+    return (ret, outstr, errstr)
+
+UNIQUE_KEY = "unique"
+MAIN_EXEC_NAME = "xf-generator-main"
+DAEMON_EXEC_NAME = "xf-generator-daemon"
+DAEMON_PY_NAME = "xf-daemon.py"
+
+def get_unique_pids(unique):
+    pids = {
+        "main_exec": None,
+        "daemon_exec": None,
+        "daemon_py": None
+    }
+    
+    pidsarray = []
+
+    cmd = "ps aux|grep '%s .*--%s=%s '|grep -v grep|awk '{print $2}'" % (MAIN_EXEC_NAME, UNIQUE_KEY, unique)
+    (ret, outstr, errstr) = run_cmd_wrapper(cmd, check_interval=0.1, timeout=2)
+    if outstr:
+        outstr = outstr.strip()
+        if outstr.isdigit():
+            pids["main_exec"] = int(outstr)
+            pidsarray.append(int(outstr))
+
+    cmd = "ps aux|grep '%s .*--%s=%s '|grep -v grep|awk '{print $2}'" % (DAEMON_EXEC_NAME, UNIQUE_KEY, unique)
+    (ret, outstr, errstr) = run_cmd_wrapper(cmd, check_interval=0.1, timeout=2)
+    if outstr:
+        outstr = outstr.strip()
+        if outstr.isdigit():
+            pids["daemon_exec"] = int(outstr)
+            pidsarray.append(int(outstr))
+
+    cmd = "ps aux|grep '%s .*--%s=%s '|grep -v grep|awk '{print $2}'" % (DAEMON_PY_NAME, UNIQUE_KEY, unique)
+    (ret, outstr, errstr) = run_cmd_wrapper(cmd, check_interval=0.1, timeout=2)
+    if outstr:
+        outstr = outstr.strip()
+        if outstr.isdigit():
+            pids["daemon_py"] = int(outstr)
+            pidsarray.append(int(outstr))
+
+    return pidsarray

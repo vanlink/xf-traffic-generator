@@ -413,6 +413,9 @@ static int packet_loop(int seq)
         }
     }
 
+    printf("===== xf-generator ok =====\n");
+    fflush(stdout);
+
     while(1){
 
         busy = 0;

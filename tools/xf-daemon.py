@@ -294,6 +294,8 @@ INTERFACE_CNT = r["interface_cnt"]
 
 print("pkt=[%s] dispatch=[%s] stream=[%s] interface=[%s]" % (PACKET_CORE_CNT, DISPATCH_CORE_CNT, STREAM_CNT, INTERFACE_CNT))
 
+print("===== xf-generator stats ok =====");
+
 cnt = 0
 while True:
     time.sleep(1)
