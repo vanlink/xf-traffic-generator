@@ -279,12 +279,8 @@ if not UNIQUE:
     print("Invalid UNIQUE.")
     sys.exit(-1)
 
-os.system("mkdir -p %s" % (DIR_LOG_BASE))
-
 DIR_UNIQUE = os.path.join(DIR_LOG_BASE, UNIQUE)
 print("DIR_UNIQUE is [%s]" % (DIR_UNIQUE))
-os.system("rm -rf %s" % (DIR_UNIQUE))
-os.system("mkdir -p %s" % (DIR_UNIQUE))
 
 r = get_dict_from_url("/get_basic")
 PACKET_CORE_CNT = r["pkt_core_cnt"]
@@ -294,7 +290,7 @@ INTERFACE_CNT = r["interface_cnt"]
 
 print("pkt=[%s] dispatch=[%s] stream=[%s] interface=[%s]" % (PACKET_CORE_CNT, DISPATCH_CORE_CNT, STREAM_CNT, INTERFACE_CNT))
 
-print("===== xf-generator stats ok =====");
+print("===== xf-generator stats ok =====", flush=True);
 
 cnt = 0
 while True:

@@ -6,8 +6,21 @@ import subprocess
 import json
 import re
 import copy
+import socket
 
 DIR_LOG_BASE = "/var/log/xf-traffic-generator"
+
+UNIQUE_KEY = "unique"
+
+MAIN_EXEC_NAME = "./xf-generator-main"
+DAEMON_EXEC_NAME = "./xf-generator-daemon"
+DAEMON_PY_NAME = "../tools/xf-daemon.py"
+
+MAIN_EXEC_OUT = "xf-generator-main.out"
+DAEMON_EXEC_OUT = "xf-generator-daemon.out"
+DAEMON_PY_OUT = "xf-daemon-py.out"
+
+OK_STR = "===== xf-generator"
 
 class StatDict(dict):
     def __init__(self, d):
@@ -161,11 +174,6 @@ def run_cmd_wrapper(cmd, check_interval=0.5, timeout=10, asyncdo=False):
 
     return (ret, outstr, errstr)
 
-UNIQUE_KEY = "unique"
-MAIN_EXEC_NAME = "xf-generator-main"
-DAEMON_EXEC_NAME = "xf-generator-daemon"
-DAEMON_PY_NAME = "xf-daemon.py"
-
 def get_unique_pids(unique):
     pids = {
         "main_exec": None,
@@ -200,3 +208,24 @@ def get_unique_pids(unique):
             pidsarray.append(int(outstr))
 
     return pidsarray
+
+def ok_str_found(filename):
+    cmd = 'cat %s 2>&1 | grep "%s" > /dev/null' % (filename, OK_STR)
+    if os.system(cmd):
+        return False
+    return True
+
+def is_local_port_in_use(port):
+    s = socket.socket()
+    try:
+        s.bind(("127.0.0.1", int(port)))
+        s.listen(1)
+    except:
+        return True
+    finally:
+        try:
+            s.close()
+        except:
+            pass
+    
+    return False
