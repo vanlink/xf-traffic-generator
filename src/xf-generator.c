@@ -288,7 +288,7 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
                 }
                 *dst_core = 0;
             }else if(icmpv6->type == ICMP6_TYPE_NA){
-                priv->pnetif = lwip_get_netif_from_ipv6(icmpv6->target_addr);
+                priv->pnetif = lwip_get_netif_from_ipv6(ipv6->dst_addr);
                 if(!priv->pnetif){
                     return -1;
                 }
