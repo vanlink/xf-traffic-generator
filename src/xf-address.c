@@ -99,6 +99,50 @@ static int init_local_ipv4(cJSON *json_address_one, ADDRESS_LOCAL_ONE *local_add
     return 0;
 }
 
+static int init_local_ipv6(cJSON *json_address_one, ADDRESS_LOCAL_ONE *local_address_one)
+{
+    struct in6_addr start, end, tmpipv6;
+    cJSON *json2;
+    int num, i;
+    uint32_t lastpart;
+
+    json2 = cJSON_GetObjectItem(json_address_one, "start");
+    if(json2){
+        if(str_to_ipv6(json2->valuestring, &start) < 0){
+            printf("init_local_ipv6 invalid ipv6.\n");
+            return -1;
+        }
+    }else{
+        printf("init_local_ipv6 no ip start.\n");
+        return -1;
+    }
+    json2 = cJSON_GetObjectItem(json_address_one, "end");
+    if(json2){
+        if(str_to_ipv6(json2->valuestring, &end) < 0){
+            printf("init_local_ipv6 invalid ipv6.\n");
+            return -1;
+        }
+    }else{
+        memcpy(&end, &start, sizeof(end));
+    }
+
+    num = rte_bswap32(end.s6_addr32[3]) - rte_bswap32(start.s6_addr32[3]) + 1;
+    for(i=0;i<num;i++){
+        lastpart = rte_bswap32(rte_bswap32(start.s6_addr32[3]) + i);
+        memcpy(&tmpipv6, &start, sizeof(tmpipv6));
+        tmpipv6.s6_addr32[3] = lastpart;
+
+        local_address_one->netif_ptrs[local_address_one->address_cnt] = lwip_get_netif_from_ipv6((u8_t *)tmpipv6.s6_addr32);
+        if(!local_address_one->netif_ptrs[local_address_one->address_cnt]){
+            printf("local_address6 not found in interfaces.\n");
+            return -1;
+        }
+        local_address_one->address_cnt++;
+    }
+
+    return 0;
+}
+
 static int init_remote_ipv4(cJSON *json_address_one, ADDRESS_REMOTE_ONE *remote_address_one)
 {
     uint32_t ip = 0, start = 0, end = 0;
@@ -110,6 +154,54 @@ static int init_remote_ipv4(cJSON *json_address_one, ADDRESS_REMOTE_ONE *remote_
     weight = cJSON_GetObjectItem(json_address_one, "weight")->valueint;
     for(ip=start;ip<=end;ip++){
         ip_addr_set_ip4_u32(&remote_address_one->address[remote_address_one->address_cnt], rte_bswap32(ip));
+        remote_address_one->weight_config[remote_address_one->address_cnt] = weight;
+        remote_address_one->weight[remote_address_one->address_cnt] = weight;
+        remote_address_one->address_cnt++;
+        remote_address_one->port = port;
+    }
+
+    return 0;
+}
+
+static int init_remote_ipv6(cJSON *json_address_one, ADDRESS_REMOTE_ONE *remote_address_one)
+{
+    uint32_t weight, port;
+    struct in6_addr start, end, tmpipv6;
+    cJSON *json2;
+    int num, i;
+    uint32_t lastpart;
+
+
+    json2 = cJSON_GetObjectItem(json_address_one, "start");
+    if(json2){
+        if(str_to_ipv6(json2->valuestring, &start) < 0){
+            printf("init_local_ipv6 invalid ipv6.\n");
+            return -1;
+        }
+    }else{
+        printf("init_local_ipv6 no ip start.\n");
+        return -1;
+    }
+    json2 = cJSON_GetObjectItem(json_address_one, "end");
+    if(json2){
+        if(str_to_ipv6(json2->valuestring, &end) < 0){
+            printf("init_local_ipv6 invalid ipv6.\n");
+            return -1;
+        }
+    }else{
+        memcpy(&end, &start, sizeof(end));
+    }
+
+    port = cJSON_GetObjectItem(json_address_one, "port")->valueint;
+    weight = cJSON_GetObjectItem(json_address_one, "weight")->valueint;
+
+    num = rte_bswap32(end.s6_addr32[3]) - rte_bswap32(start.s6_addr32[3]) + 1;
+    for(i=0;i<num;i++){
+        lastpart = rte_bswap32(rte_bswap32(start.s6_addr32[3]) + i);
+        memcpy(&tmpipv6, &start, sizeof(tmpipv6));
+        tmpipv6.s6_addr32[3] = lastpart;
+
+        IP_ADDR6(&remote_address_one->address[remote_address_one->address_cnt], start.s6_addr32[0], start.s6_addr32[1], start.s6_addr32[2], start.s6_addr32[3]);
         remote_address_one->weight_config[remote_address_one->address_cnt] = weight;
         remote_address_one->weight[remote_address_one->address_cnt] = weight;
         remote_address_one->address_cnt++;
@@ -158,7 +250,10 @@ int init_addresses(cJSON *json_root)
                         return -1;
                     }
                 }else if(!str_to_ipv6(val_string, &start6)){
-
+                    if(init_local_ipv6(json_address_one, local_address_one) < 0){
+                        return -1;
+                    }
+                    local_address->is_ipv6 = 1;
                 }else{
                     printf("invalid local ipaddr %s.\n", val_string);
                     return -1;
@@ -191,7 +286,7 @@ int init_addresses(cJSON *json_root)
                 if(!str_to_ipv4(val_string, &start)){
                     init_remote_ipv4(json_address_one, remote_address_one);
                 }else if(!str_to_ipv6(val_string, &start6)){
-
+                    init_remote_ipv6(json_address_one, remote_address_one);
                 }else{
                     printf("invalid remote ipaddr %s.\n", val_string);
                     return -1;
