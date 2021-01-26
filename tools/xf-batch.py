@@ -47,5 +47,5 @@ if TO_KILL:
         os.system("kill -9 %s" % (i))
     pids = get_unique_pids(UNIQUE)
     if pids:
-        print("Kill fail.")
-    print("Unique ID killed.")
+        print("Kill fail %s." % (pids))
+    print("Unique ID [%s] killed." % (UNIQUE))

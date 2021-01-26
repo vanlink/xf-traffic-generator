@@ -22,6 +22,7 @@
 #include <rte_icmp.h>
 #include <rte_net.h>
 #include <rte_memcpy.h>
+#include <rte_flow.h>
 
 #include "cjson/cJSON.h"
 
@@ -42,6 +43,7 @@
 #include "lwip/altcp.h"
 #include "lwip/altcp_tls.h"
 #include "lwip/tcp.h"
+#include "lwip/icmp6.h"
 #include "lwip/memp.h"
 
 #include "xf-generator.h"
@@ -240,12 +242,8 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
     struct rte_udp_hdr *udp = NULL;
     struct rte_icmp_hdr *icmp = NULL;
     struct rte_arp_hdr *arp = NULL;
+    struct rte_flow_item_icmp6_nd_ns *icmpv6 = NULL;
     MBUF_PRIV_T *priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
-
-    (void)ipv4;
-    (void)ipv6;
-    (void)udp;
-    (void)icmp;
 
     dpdkdat = rte_pktmbuf_mtod(m, char *);
 
@@ -280,6 +278,31 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
         }
     }else if((ptype & RTE_PTYPE_L3_MASK) == RTE_PTYPE_L3_IPV6){
         ipv6 = (struct rte_ipv6_hdr *)(dpdkdat + hdr_lens.l2_len);
+
+        if(unlikely(ipv6->proto == IPPROTO_ICMPV6)){
+            icmpv6 = (struct rte_flow_item_icmp6_nd_ns *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
+            if(icmpv6->type == ICMP6_TYPE_NS){
+                priv->pnetif = lwip_get_netif_from_ipv6(icmpv6->target_addr);
+                if(!priv->pnetif){
+                    return -1;
+                }
+                *dst_core = 0;
+            }else if(icmpv6->type == ICMP6_TYPE_NA){
+                priv->pnetif = lwip_get_netif_from_ipv6(icmpv6->target_addr);
+                if(!priv->pnetif){
+                    return -1;
+                }
+                *dst_core = -1;
+            }else{
+                return -1;
+            }
+            return 0;
+        }
+
+        priv->pnetif = lwip_get_netif_from_ipv6(ipv6->dst_addr);
+        if(!priv->pnetif){
+            return -1;
+        }
     }else{
         return -1;
     }
@@ -296,8 +319,10 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
         }
     }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_UDP){
         udp = (struct rte_udp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
+        (void)udp;
     }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_ICMP){
         icmp = (struct rte_icmp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
+        (void)icmp;
     }else{
         return -1;
     }
