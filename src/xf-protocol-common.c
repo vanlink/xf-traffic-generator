@@ -265,6 +265,7 @@ int protocol_common_listen(STREAM *stream)
     struct altcp_pcb *listenpcb;
     struct altcp_pcb *listenpcbnew;
     struct netif *net_if = stream->listen_net_if;
+    err_t ret;
 
     if(stream->is_tls){
         listenpcb = altcp_tls_alloc(NULL, IPADDR_TYPE_V4);
@@ -283,7 +284,12 @@ int protocol_common_listen(STREAM *stream)
     if(pcb){
         tcp_bind_netif(pcb, net_if);
     }
-    if(altcp_bind(listenpcb, &net_if->ip_addr, stream->listen_port) != ERR_OK){
+    if(stream->stream_is_ipv6){
+        ret = altcp_bind(listenpcb, netif_ip_addr6(net_if, 0), stream->listen_port);
+    }else{
+        ret = altcp_bind(listenpcb, &net_if->ip_addr, stream->listen_port);
+    }
+    if(ret != ERR_OK){
         printf("protocol listen bind pcb err.\n");
         return -1;
     }
