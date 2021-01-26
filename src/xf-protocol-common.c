@@ -264,15 +264,7 @@ int protocol_common_listen(STREAM *stream)
     struct tcp_pcb *pcb;
     struct altcp_pcb *listenpcb;
     struct altcp_pcb *listenpcbnew;
-    struct netif *net_if;
-    uint32_t ipv4 = 0;
-
-    str_to_ipv4(stream->listen_ip, &ipv4);
-    net_if = lwip_get_netif_from_ipv4(rte_bswap32(ipv4));
-    if(!net_if){
-        printf("protocol listen ip %s not found.\n", stream->listen_ip);
-        return -1;
-    }
+    struct netif *net_if = stream->listen_net_if;
 
     if(stream->is_tls){
         listenpcb = altcp_tls_alloc(NULL, IPADDR_TYPE_V4);

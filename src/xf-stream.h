@@ -5,6 +5,7 @@
 #include "dkfw_cps.h"
 #include "dkfw_stats.h"
 #include "lwip/opt.h"
+#include "lwip/netif.h"
 #include "xf-session.h"
 
 #define STREAM_CNT_MAX 32
@@ -46,10 +47,12 @@ typedef struct _STREAM_t {
     int remote_address_ind;
     int http_message_ind;
 
+    int stream_is_ipv6;
     int is_tls;
     int close_with_rst;
 
     char listen_ip[64];
+    struct netif *listen_net_if;
     uint16_t listen_port;
 
     uint64_t cps;  // conns per second

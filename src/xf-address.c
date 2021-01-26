@@ -287,6 +287,7 @@ int init_addresses(cJSON *json_root)
                     init_remote_ipv4(json_address_one, remote_address_one);
                 }else if(!str_to_ipv6(val_string, &start6)){
                     init_remote_ipv6(json_address_one, remote_address_one);
+                    remote_address->is_ipv6 = 1;
                 }else{
                     printf("invalid remote ipaddr %s.\n", val_string);
                     return -1;
@@ -320,6 +321,11 @@ struct netif *local_address_get(int ind, int core, int force_next)
     return ret;
 }
 
+int local_address_pool_is_ipv6(int ind)
+{
+    return local_address_ptr[ind]->is_ipv6;
+}
+
 ip_addr_t *remote_address_get(int ind, int core, int *port)
 {
     ADDRESS_REMOTE_ONE *address = &remote_address_ptr[ind]->addresses[core];
@@ -338,5 +344,10 @@ ip_addr_t *remote_address_get(int ind, int core, int *port)
     }
 
     return ret;
+}
+
+int remote_address_pool_is_ipv6(int ind)
+{
+    return remote_address_ptr[ind]->is_ipv6;
 }
 

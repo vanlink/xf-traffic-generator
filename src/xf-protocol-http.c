@@ -20,6 +20,7 @@
 
 #include "xf-tools.h"
 #include "xf-stream.h"
+#include "xf-address.h"
 #include "xf-protocol-common.h"
 #include "xf-protocol-http.h"
 #include "xf-session.h"
@@ -198,6 +199,8 @@ static int protocol_http_client_connecned(SESSION *session, STREAM *stream, void
 
 static int protocol_http_client_sent(SESSION *session, STREAM *stream, void *pcb, uint16_t sent_len)
 {
+    (void)sent_len;
+
     if(session->proto_state != HTTP_STATE_REQ){
         return 0;
     }
@@ -214,6 +217,9 @@ static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, v
 
 static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb, char *data, int datalen)
 {
+    (void)stream;
+    (void)pcb;
+
     if(session->proto_state != HTTP_STATE_RSP){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_DATA_EARLY);
         return -1;
@@ -229,12 +235,16 @@ static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb
 
 static int protocol_http_client_err(SESSION *session, STREAM *stream)
 {
+    (void)stream;
+
     http_close_session(session, NULL, 0);
     return 0;
 }
 
 static int protocol_http_client_session_new(SESSION *session, STREAM *stream, void *pcb)
 {
+    (void)pcb;
+
     session->msgs_left = stream->rpc;
 
     return 0;
@@ -242,6 +252,10 @@ static int protocol_http_client_session_new(SESSION *session, STREAM *stream, vo
 
 static int protocol_http_server_sent(SESSION *session, STREAM *stream, void *pcb, uint16_t sent_len)
 {
+    (void)stream;
+    (void)pcb;
+    (void)sent_len;
+
     if(session->proto_state != HTTP_STATE_RSP){
         return 0;
     }
@@ -258,6 +272,9 @@ static int protocol_http_server_remote_close(SESSION *session, STREAM *stream, v
 
 static int protocol_http_server_recv(SESSION *session, STREAM *stream, void *pcb, char *data, int datalen)
 {
+    (void)stream;
+    (void)pcb;
+
     if(session->proto_state != HTTP_STATE_REQ){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_DATA_EARLY);
         return -1;
@@ -273,12 +290,17 @@ static int protocol_http_server_recv(SESSION *session, STREAM *stream, void *pcb
 
 static int protocol_http_server_err(SESSION *session, STREAM *stream)
 {
+    (void)stream;
+
     http_close_session(session, NULL, 0);
     return 0;
 }
 
 static int protocol_http_server_session_new(SESSION *session, STREAM *stream, void *pcb)
 {
+    (void)stream;
+    (void)pcb;
+
     llhttp_init(&session->http_parser, HTTP_REQUEST, &llhttp_settings_request);
     session->http_parser.data = session;
     session->proto_state = HTTP_STATE_REQ;
@@ -291,10 +313,19 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     int i;
     uint64_t value;
     cJSON *json_item;
+    int a, b;
 
     stream->local_address_ind = cJSON_GetObjectItem(json_root, "local_address_ind")->valueint;
     stream->remote_address_ind = cJSON_GetObjectItem(json_root, "remote_address_ind")->valueint;
     stream->http_message_ind = cJSON_GetObjectItem(json_root, "http_message_ind")->valueint;
+
+    a = !!local_address_pool_is_ipv6(stream->local_address_ind);
+    b = !!remote_address_pool_is_ipv6(stream->remote_address_ind);
+    if(a ^ b){
+        printf("stream local/remote ip version not match.\n");
+        return -1;
+    }
+    stream->stream_is_ipv6 = a;
 
     stream->cps = cJSON_GetObjectItem(json_root, "cps")->valueint;
     stream->cps = stream->cps ? stream->cps : 1;
@@ -331,10 +362,30 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
 
 int init_stream_http_server(cJSON *json_root, STREAM *stream)
 {
-    stream->http_message_ind = cJSON_GetObjectItem(json_root, "http_message_ind")->valueint;
+    struct in6_addr start6;
+    uint32_t start;
 
+    stream->http_message_ind = cJSON_GetObjectItem(json_root, "http_message_ind")->valueint;
     strcpy(stream->listen_ip, cJSON_GetObjectItem(json_root, "listen_ip")->valuestring);
     stream->listen_port = cJSON_GetObjectItem(json_root, "listen_port")->valueint;
+
+    if(!str_to_ipv4(stream->listen_ip, &start)){
+        stream->listen_net_if = lwip_get_netif_from_ipv4(rte_bswap32(start));
+        if(!stream->listen_net_if){
+            printf("stream listen ip %s not found.\n", stream->listen_ip);
+            return -1;
+        }
+    }else if(!str_to_ipv6(stream->listen_ip, &start6)){
+        stream->stream_is_ipv6 = 1;
+        stream->listen_net_if = lwip_get_netif_from_ipv6((u8_t *)start6.s6_addr32);
+        if(!stream->listen_net_if){
+            printf("stream listen ip %s not found.\n", stream->listen_ip);
+            return -1;
+        }
+    }else{
+        printf("invalid listen ipaddr.\n");
+        return -1;
+    }
 
     stream->stream_listen = protocol_common_listen;
     stream->stream_session_new = protocol_http_server_session_new;
