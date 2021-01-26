@@ -25,7 +25,6 @@
 #include "xf-network.h"
 #include "xf-generator.h"
 
-static struct netif *lwip_netifs_ptr[LWIP_INTERFACE_MAX];
 static int lwip_netif_num_2_phy_port_ind[LWIP_INTERFACE_MAX + 2] = {0};
 static struct rte_mempool *pktmbuf_lwip2dpdk = NULL;
 
@@ -132,15 +131,136 @@ static err_t netif_init_local(struct netif *intf)
     return ERR_OK;
 }
 
+static int init_networks_ipv4(cJSON *json_array_item,int interface_ind)
+{
+    uint32_t ip = 0, start = 0, end = 0, mask = 0, gw = 0;
+    ip4_addr_t local_ipaddr, local_netmask, local_gw;
+    struct netif *net_if;
+
+    str_to_ipv4(cJSON_GetObjectItem(json_array_item, "start")->valuestring, &start);
+    str_to_ipv4(cJSON_GetObjectItem(json_array_item, "end")->valuestring, &end);
+    str_to_ipv4(cJSON_GetObjectItem(json_array_item, "mask")->valuestring, &mask);
+    str_to_ipv4(cJSON_GetObjectItem(json_array_item, "gw")->valuestring, &gw);
+    for(ip=start;ip<=end;ip++){
+        IP4_ADDR(&local_ipaddr, (ip >> 24) & 0xff,
+                            (ip >> 16) & 0xff,
+                            (ip >> 8) & 0xff,
+                            (ip >> 0) & 0xff);
+        IP4_ADDR(&local_netmask, (mask >> 24) & 0xff,
+                                (mask >> 16) & 0xff,
+                                (mask >> 8) & 0xff,
+                                (mask >> 0) & 0xff);
+        IP4_ADDR(&local_gw, (gw >> 24) & 0xff,
+                                (gw >> 16) & 0xff,
+                                (gw >> 8) & 0xff,
+                                (gw >> 0) & 0xff);
+        net_if = rte_zmalloc(NULL, sizeof(struct netif), RTE_CACHE_LINE_SIZE);
+        if(!net_if){
+            printf("init net if mem error.\n");
+            return -1;
+        }
+        if(lwip_get_netif_from_ipv4(ip4_addr_get_u32(&local_ipaddr))){
+            printf("network addr already exist\n");
+            return -1;
+        }
+        if(!netif_add(net_if, &local_ipaddr, &local_netmask, &local_gw, NULL, netif_init_local, netif_input, 0)){
+            printf("netif_add err.\n");
+            return -1;
+        }
+        lwip_netif_num_2_phy_port_ind[net_if->num] = interface_ind;
+        netif_set_link_up(net_if);
+        netif_set_up(net_if);
+    }
+
+    return 0;
+}
+
+static int init_networks_ipv6(cJSON *json_array_item,int interface_ind)
+{
+    struct in6_addr start, end, gw, tmpipv6;
+    int masklen;
+    struct netif *net_if;
+    cJSON *json2;
+    int num, i;
+    uint32_t lastpart;
+    ip6_addr_t local_ipv6addr;
+
+    json2 = cJSON_GetObjectItem(json_array_item, "start");
+    if(json2){
+        if(str_to_ipv6(json2->valuestring, &start) < 0){
+            printf("invalid ipv6.\n");
+            return -1;
+        }
+    }else{
+        printf("no ip start.\n");
+        return -1;
+    }
+
+    json2 = cJSON_GetObjectItem(json_array_item, "end");
+    if(json2){
+        if(str_to_ipv6(json2->valuestring, &end) < 0){
+            printf("invalid ipv6.\n");
+            return -1;
+        }
+    }else{
+        memcpy(&end, &start, sizeof(end));
+    }
+
+    json2 = cJSON_GetObjectItem(json_array_item, "gw");
+    if(json2){
+        if(str_to_ipv6(json2->valuestring, &gw) < 0){
+            printf("invalid ipv6.\n");
+            return -1;
+        }
+    }else{
+        memset(&gw, 0, sizeof(gw));
+    }
+
+    json2 = cJSON_GetObjectItem(json_array_item, "masklen");
+    masklen = json2 ? json2->valueint : 64;
+
+    num = rte_bswap32(end.s6_addr32[3]) - rte_bswap32(start.s6_addr32[3]) + 1;
+    for(i=0;i<num;i++){
+        lastpart = rte_bswap32(rte_bswap32(start.s6_addr32[3]) + i);
+        memcpy(&tmpipv6, &start, sizeof(tmpipv6));
+        tmpipv6.s6_addr32[3] = lastpart;
+
+        net_if = rte_zmalloc(NULL, sizeof(struct netif), RTE_CACHE_LINE_SIZE);
+        if(!net_if){
+            printf("init net if mem error.\n");
+            return -1;
+        }
+
+        if(!netif_add(net_if, NULL, NULL, NULL, NULL, netif_init_local, netif_input, 0)){
+            printf("netif_add ipv6 err.\n");
+            return -1;
+        }
+        IP6_ADDR(&local_ipv6addr, tmpipv6.s6_addr32[0], tmpipv6.s6_addr32[1], tmpipv6.s6_addr32[2], tmpipv6.s6_addr32[3]);
+        if(lwip_get_netif_from_ipv6((u8_t *)tmpipv6.s6_addr32)){
+            printf("network addr6 already exist\n");
+            return -1;
+        }
+        netif_ip6_addr_set(net_if, 0, &local_ipv6addr);
+        netif_ip6_addr_set_state(net_if, 0, IP6_ADDR_PREFERRED);
+        IP6_ADDR(&local_ipv6addr, gw.s6_addr32[0], gw.s6_addr32[1], gw.s6_addr32[2], gw.s6_addr32[3]);
+        memcpy(&net_if->ip6_gw, &local_ipv6addr, sizeof(local_ipv6addr));
+        net_if->ip6_masklen = masklen;
+        lwip_netif_num_2_phy_port_ind[net_if->num] = interface_ind;
+        netif_set_link_up(net_if);
+        netif_set_up(net_if);
+    }
+
+    return 0;
+}
+
 int init_networks(cJSON *json_root)
 {
     cJSON *json_networks = cJSON_GetObjectItem(json_root, "networks");
     cJSON *json_array_item;
-    uint32_t ip = 0, start = 0, end = 0, mask = 0, gw = 0;
-    struct netif *net_if;
-    ip4_addr_t local_ipaddr, local_netmask, local_gw;
-    int ind = 0;
     int interface_ind;
+    char *val_string;
+    uint32_t start;
+    struct in6_addr start6;
 
     pktmbuf_lwip2dpdk = rte_pktmbuf_pool_create("mbuflwip2dpdk", 65534, 512, 0, RTE_MBUF_DEFAULT_BUF_SIZE, SOCKET_ID_ANY);
     if(!pktmbuf_lwip2dpdk){
@@ -148,46 +268,23 @@ int init_networks(cJSON *json_root)
         return -1;
     }
 
-    memset(lwip_netifs_ptr, 0, sizeof(struct netif *) * LWIP_INTERFACE_MAX);
-
     cJSON_ArrayForEach(json_array_item, json_networks){
 
         interface_ind = cJSON_GetObjectItem(json_array_item, "interface_ind")->valueint;
 
-        str_to_ipv4(cJSON_GetObjectItem(json_array_item, "start")->valuestring, &start);
-        str_to_ipv4(cJSON_GetObjectItem(json_array_item, "end")->valuestring, &end);
-        str_to_ipv4(cJSON_GetObjectItem(json_array_item, "mask")->valuestring, &mask);
-        str_to_ipv4(cJSON_GetObjectItem(json_array_item, "gw")->valuestring, &gw);
+        val_string = cJSON_GetObjectItem(json_array_item, "start")->valuestring;
 
-        for(ip=start;ip<=end;ip++){
-            IP4_ADDR(&local_ipaddr, (ip >> 24) & 0xff,
-                                (ip >> 16) & 0xff,
-                                (ip >> 8) & 0xff,
-                                (ip >> 0) & 0xff);
-            IP4_ADDR(&local_netmask, (mask >> 24) & 0xff,
-                                    (mask >> 16) & 0xff,
-                                    (mask >> 8) & 0xff,
-                                    (mask >> 0) & 0xff);
-            IP4_ADDR(&local_gw, (gw >> 24) & 0xff,
-                                    (gw >> 16) & 0xff,
-                                    (gw >> 8) & 0xff,
-                                    (gw >> 0) & 0xff);
-            net_if = rte_zmalloc(NULL, sizeof(struct netif), RTE_CACHE_LINE_SIZE);
-            if(!net_if){
-                printf("init net if mem error.\n");
+        if(!str_to_ipv4(val_string, &start)){
+            if(init_networks_ipv4(json_array_item, interface_ind) < 0){
                 return -1;
             }
-            lwip_netifs_ptr[ind] = net_if;
-
-            if(!netif_add(net_if, &local_ipaddr, &local_netmask, &local_gw, NULL, netif_init_local, netif_input, 0)){
-                printf("netif_add %d err.\n", ind);
+        }else if(!str_to_ipv6(val_string, &start6)){
+            if(init_networks_ipv6(json_array_item, interface_ind) < 0){
                 return -1;
             }
-            lwip_netif_num_2_phy_port_ind[net_if->num] = interface_ind;
-            netif_set_link_up(net_if);
-            netif_set_up(net_if);
-
-            ind++;
+        }else{
+            printf("invalid ipaddr %s.\n", val_string);
+            return -1;
         }
     }
 

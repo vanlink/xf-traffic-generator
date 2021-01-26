@@ -1,0 +1,82 @@
+{
+    "cores-process": [11],
+    "cores-dispatch": [18],
+    
+    "interfaces": [
+        "0000:82:00.0"
+    ],
+
+    "mem_static_pools": {
+        "pcb-altcp": 2048,
+        "pcb-tcp-listen": 2048,
+        "pcb-tcp": 2048,
+        "tcp-seg": 2048,
+        "arp-q": 2048,
+        "nd6-q": 2048,
+        "pbuf-pool": 4096,
+        "pbuf": 8192,
+        "sys-timeout": 2048
+    },
+    
+    "mem_step_pools": [
+        {"size":2048, "cnt":8192},
+        {"size":4096, "cnt":4096},
+        {"size":8192, "cnt":4096},
+        {"size":16384, "cnt":4096},
+        {"size":32768, "cnt":4096},
+        {"size":65536, "cnt":4096}
+    ],
+    
+    "sessions": 65536,
+    
+    "networks": [
+        {
+            "interface_ind": 0,
+            "start": "2001::1",
+            "end": "2001::10",
+            "masklen": 96,
+            "gw": "2001::254"
+        }
+    ],
+    
+    "local_addresses":[
+        {
+            "type":"ip-rr",
+            "addresses":[
+                { "start":"2001::1", "end":"2001::10" }
+            ]
+        }
+    ],
+    
+    "remote_addresses":[
+        {
+            "addresses":[
+                { "start":"2001::100", "end":"2001::100", "port":80, "weight":1 }
+            ]
+        }
+    ],
+    
+    "http_messages":[
+        {
+            "messages":[
+                { "path":"/req.txt"}
+            ]
+        }
+    ],
+    
+    "streams":[
+        {
+            "type":"httpclient",
+            "local_address_ind":0,
+            "remote_address_ind":0,
+            "http_message_ind":0,
+
+            "cps":1,
+            "rpc":1,
+            "ipr":0,
+            "conn_max_send":0,
+
+            "session_timeout":32
+        }
+    ]
+}

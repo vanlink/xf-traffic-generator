@@ -81,18 +81,58 @@ static ADDRESS_LOCAL *local_address_ptr[MAX_ADDRESS_POOLS];
 
 static ADDRESS_REMOTE *remote_address_ptr[MAX_ADDRESS_POOLS];
 
+static int init_local_ipv4(cJSON *json_address_one, ADDRESS_LOCAL_ONE *local_address_one)
+{
+    uint32_t ip = 0, start = 0, end = 0;
+
+    str_to_ipv4(cJSON_GetObjectItem(json_address_one, "start")->valuestring, &start);
+    str_to_ipv4(cJSON_GetObjectItem(json_address_one, "end")->valuestring, &end);
+    for(ip=start;ip<=end;ip++){
+        local_address_one->netif_ptrs[local_address_one->address_cnt] = lwip_get_netif_from_ipv4(rte_bswap32(ip));
+        if(!local_address_one->netif_ptrs[local_address_one->address_cnt]){
+            printf("local_address not found in interfaces.\n");
+            return -1;
+        }
+        local_address_one->address_cnt++;
+    }
+
+    return 0;
+}
+
+static int init_remote_ipv4(cJSON *json_address_one, ADDRESS_REMOTE_ONE *remote_address_one)
+{
+    uint32_t ip = 0, start = 0, end = 0;
+    uint32_t weight, port;
+
+    str_to_ipv4(cJSON_GetObjectItem(json_address_one, "start")->valuestring, &start);
+    str_to_ipv4(cJSON_GetObjectItem(json_address_one, "end")->valuestring, &end);
+    port = cJSON_GetObjectItem(json_address_one, "port")->valueint;
+    weight = cJSON_GetObjectItem(json_address_one, "weight")->valueint;
+    for(ip=start;ip<=end;ip++){
+        ip_addr_set_ip4_u32(&remote_address_one->address[remote_address_one->address_cnt], rte_bswap32(ip));
+        remote_address_one->weight_config[remote_address_one->address_cnt] = weight;
+        remote_address_one->weight[remote_address_one->address_cnt] = weight;
+        remote_address_one->address_cnt++;
+        remote_address_one->port = port;
+    }
+
+    return 0;
+}
+
 int init_addresses(cJSON *json_root)
 {
     cJSON *json_addresses;
     cJSON *json_array_item;
     cJSON *json_address_one;
-    uint32_t ip = 0, start = 0, end = 0, port, weight;
     int ind = 0, i;
     ADDRESS_LOCAL *local_address;
     ADDRESS_LOCAL_ONE *local_address_one;
     ADDRESS_REMOTE *remote_address;
     ADDRESS_REMOTE_ONE *remote_address_one;
     char *str;
+    char *val_string;
+    struct in6_addr start6;
+    uint32_t start;
 
     memset(local_address_ptr, 0, sizeof(local_address_ptr));
     json_addresses = cJSON_GetObjectItem(json_root, "local_addresses");
@@ -112,15 +152,16 @@ int init_addresses(cJSON *json_root)
         for(i=0;i<g_lwip_core_cnt;i++){
             local_address_one = &local_address->addresses[i];
             cJSON_ArrayForEach(json_address_one, cJSON_GetObjectItem(json_array_item, "addresses")){
-                str_to_ipv4(cJSON_GetObjectItem(json_address_one, "start")->valuestring, &start);
-                str_to_ipv4(cJSON_GetObjectItem(json_address_one, "end")->valuestring, &end);
-                for(ip=start;ip<=end;ip++){
-                    local_address_one->netif_ptrs[local_address_one->address_cnt] = lwip_get_netif_from_ipv4(rte_bswap32(ip));
-                    if(!local_address_one->netif_ptrs[local_address_one->address_cnt]){
-                        printf("local_address not found in interfaces.\n");
+                val_string = cJSON_GetObjectItem(json_address_one, "start")->valuestring;
+                if(!str_to_ipv4(val_string, &start)){
+                    if(init_local_ipv4(json_address_one, local_address_one) < 0){
                         return -1;
                     }
-                    local_address_one->address_cnt++;
+                }else if(!str_to_ipv6(val_string, &start6)){
+
+                }else{
+                    printf("invalid local ipaddr %s.\n", val_string);
+                    return -1;
                 }
             }
         }
@@ -146,16 +187,14 @@ int init_addresses(cJSON *json_root)
         for(i=0;i<g_lwip_core_cnt;i++){
             remote_address_one = &remote_address->addresses[i];
             cJSON_ArrayForEach(json_address_one, cJSON_GetObjectItem(json_array_item, "addresses")){
-                str_to_ipv4(cJSON_GetObjectItem(json_address_one, "start")->valuestring, &start);
-                str_to_ipv4(cJSON_GetObjectItem(json_address_one, "end")->valuestring, &end);
-                port = cJSON_GetObjectItem(json_address_one, "port")->valueint;
-                weight = cJSON_GetObjectItem(json_address_one, "weight")->valueint;
-                for(ip=start;ip<=end;ip++){
-                    ip_addr_set_ip4_u32(&remote_address_one->address[remote_address_one->address_cnt], rte_bswap32(ip));
-                    remote_address_one->weight_config[remote_address_one->address_cnt] = weight;
-                    remote_address_one->weight[remote_address_one->address_cnt] = weight;
-                    remote_address_one->address_cnt++;
-                    remote_address_one->port = port;
+                val_string = cJSON_GetObjectItem(json_address_one, "start")->valuestring;
+                if(!str_to_ipv4(val_string, &start)){
+                    init_remote_ipv4(json_address_one, remote_address_one);
+                }else if(!str_to_ipv6(val_string, &start6)){
+
+                }else{
+                    printf("invalid remote ipaddr %s.\n", val_string);
+                    return -1;
                 }
             }
         }
