@@ -62,6 +62,8 @@ static int init_stream_stats(DKFW_STATS *stats)
     dkfw_stats_add_item(stats, STREAM_STATS_TCP_CLOSE_TIMEOUT, DKFW_STATS_TYPE_NUM, "tcp-close-timeout");
     dkfw_stats_add_item(stats, STREAM_STATS_TCP_CLOSE_ERROR, DKFW_STATS_TYPE_NUM, "tcp-close-err");
 
+    dkfw_stats_add_item(stats, STREAM_STATS_SESSION_TIMEOUT, DKFW_STATS_TYPE_NUM, "session-timeout");
+
     dkfw_stats_add_item(stats, STREAM_STATS_HTTP_REQUEST, DKFW_STATS_TYPE_NUM, "http-request");
     dkfw_stats_add_item(stats, STREAM_STATS_HTTP_RESPONSE, DKFW_STATS_TYPE_NUM, "http-response");
 
