@@ -56,6 +56,7 @@ static err_t cb_sent(void *arg, struct altcp_pcb *tpcb, u16_t len)
     return ERR_OK;
 }
 
+// we will never refuse data
 static err_t cb_recv(void *arg, struct altcp_pcb *tpcb, struct pbuf *p, err_t err)
 {
     SESSION *session = (SESSION *)arg;
