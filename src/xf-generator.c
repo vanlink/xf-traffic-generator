@@ -293,6 +293,12 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
                     return -1;
                 }
                 *dst_core = -1;
+            }else if(icmpv6->type == ICMP6_TYPE_EREQ){
+                priv->pnetif = lwip_get_netif_from_ipv6(ipv6->dst_addr);
+                if(!priv->pnetif){
+                    return -1;
+                }
+                *dst_core = 0;
             }else{
                 return -1;
             }

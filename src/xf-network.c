@@ -114,6 +114,7 @@ static err_t netif_init_local(struct netif *intf)
     intf->output = etharp_output;
     intf->output_ip6 = ethip6_output;
     intf->mtu = 1518;
+    intf->mtu6 = 1518 - 20;
     intf->flags = NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP | NETIF_FLAG_ETHERNET | NETIF_FLAG_IGMP | NETIF_FLAG_MLD6;
 
     port = lwip_netif_num_2_phy_port_ind[intf->num];

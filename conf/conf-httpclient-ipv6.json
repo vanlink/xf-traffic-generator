@@ -1,6 +1,5 @@
 {
-    "cores-process": [11],
-    "cores-dispatch": [18],
+    "cores-process": [11,12,13,14],
     
     "interfaces": [
         "0000:82:00.0"
@@ -71,7 +70,7 @@
             "remote_address_ind":0,
             "http_message_ind":0,
 
-            "cps":1,
+            "cps":100,
             "rpc":1,
             "ipr":0,
             "conn_max_send":0,
