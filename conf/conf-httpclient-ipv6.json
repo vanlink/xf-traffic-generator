@@ -1,25 +1,25 @@
 {
-    "cores-process": [11,12,13,14],
+    "cores-process": [11],
     
     "interfaces": [
         "0000:82:00.0"
     ],
 
     "mem_static_pools": {
-        "pcb-altcp": 2048,
+        "pcb-altcp": 65536,
         "pcb-tcp-listen": 2048,
-        "pcb-tcp": 2048,
-        "tcp-seg": 2048,
+        "pcb-tcp": 65536,
+        "tcp-seg": 65536,
         "arp-q": 2048,
         "nd6-q": 2048,
-        "pbuf-pool": 4096,
-        "pbuf": 8192,
+        "pbuf-pool": 65536,
+        "pbuf": 655360,
         "sys-timeout": 2048
     },
     
     "mem_step_pools": [
-        {"size":2048, "cnt":8192},
-        {"size":4096, "cnt":4096},
+        {"size":2048, "cnt":65536},
+        {"size":4096, "cnt":65536},
         {"size":8192, "cnt":4096},
         {"size":16384, "cnt":4096},
         {"size":32768, "cnt":4096},
@@ -58,7 +58,7 @@
     "http_messages":[
         {
             "messages":[
-                { "path":"/req.txt"}
+                { "path":"/req-b.txt"}
             ]
         }
     ],
@@ -70,7 +70,7 @@
             "remote_address_ind":0,
             "http_message_ind":0,
 
-            "cps":100,
+            "cps":1,
             "rpc":1,
             "ipr":0,
             "conn_max_send":0,
