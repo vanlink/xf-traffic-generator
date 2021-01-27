@@ -24,6 +24,7 @@
 #include "xf-tools.h"
 #include "xf-network.h"
 #include "xf-generator.h"
+#include "xf-capture.h"
 
 static int lwip_netif_num_2_phy_port_ind[LWIP_INTERFACE_MAX + 2] = {0};
 static struct rte_mempool *pktmbuf_lwip2dpdk = NULL;
@@ -57,7 +58,11 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     }
 
     data = rte_pktmbuf_mtod(m, char *);
-    
+
+    if(unlikely(g_is_capturing)){
+        capture_do_capture(p->cpu_id, data, rte_pktmbuf_pkt_len(m));
+    }
+
     ethhdr = (struct rte_ether_hdr *)data;
     
     if(likely(ntohs(ethhdr->ether_type) == RTE_ETHER_TYPE_IPV4)){

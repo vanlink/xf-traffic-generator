@@ -5,6 +5,8 @@
 #include "dkfw_stats.h"
 #include "dkfw_timer.h"
 
+#define XF_BASE_DIR "/var/log/xf-traffic-generator"
+
 enum {
     GENERATOR_STATS_LWIP_PROCESS_FAIL = 0,
 
@@ -48,6 +50,8 @@ extern tvec_base_t *g_generator_timer_bases;
 #define GENERATOR_STATS_PAIR_STOP_INC(id)       DKFW_STATS_PAIR_STOP_INCR(g_generator_stats,id,RTE_PER_LCORE(g_cpu_id))
 
 #define DISPATCH_STATS_NUM_INC(id,core)         DKFW_STATS_CNT_INCR(g_dispatch_stats,id,core)
+
+extern char unique_id[64];
 
 #endif
 

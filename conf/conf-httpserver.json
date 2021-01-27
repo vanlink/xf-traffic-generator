@@ -41,7 +41,7 @@
     "http_messages":[
         {
             "messages":[
-                { "path":"/rsp-15k.txt"}
+                { "path":"/rsp.txt"}
             ]
         }
     ],
@@ -53,5 +53,9 @@
             "listen_ip":"192.168.1.100",
             "listen_port":80
         }
-    ]
+    ],
+    
+    "capture":{
+        "enabled":0
+    }
 }

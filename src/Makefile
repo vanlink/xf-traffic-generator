@@ -1,6 +1,6 @@
 LLHTTP_DIR=llhttp
 
-LIBS = -L${RTE_SDK}/${RTE_TARGET}/lib -Wl,--whole-archive,-ldpdk,--no-whole-archive -lrt -lm -ldl -lcrypto -pthread -lnuma -lcjson -fpic
+LIBS = -L${RTE_SDK}/${RTE_TARGET}/lib -Wl,--whole-archive,-ldpdk,--no-whole-archive -lrt -lm -ldl -lcrypto -pthread -lnuma -lcjson -lpcap -fpic
 INCLUDE = -I${RTE_SDK}/${RTE_TARGET}/include -I${DKFW_SDK}/include -I${MBEDTLS_SDK}/include -I${LWIP_SDK}/include -I${LLHTTP_DIR}/include
 DEPS = -Wall -Wextra -march=native -DALLOW_EXPERIMENTAL_API
 SLIBS = ${LWIP_SDK}/liblwipdpdk.a ${DKFW_SDK}/libdkfw.a \
@@ -13,7 +13,7 @@ else
 OPTIMIZE=-O2
 endif
 
-SRC=xf-generator.c xf-session.c xf-stream.c xf-tools.c xf-network.c xf-address.c xf-protocol-http-msg.c xf-protocol-http.c xf-protocol-common.c
+SRC=xf-generator.c xf-session.c xf-stream.c xf-tools.c xf-network.c xf-address.c xf-protocol-http-msg.c xf-protocol-http.c xf-protocol-common.c xf-capture.c
 
 all: xf-generator-main xf-generator-control xf-generator-daemon
 

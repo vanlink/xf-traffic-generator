@@ -53,6 +53,7 @@
 #include "xf-address.h"
 #include "xf-protocol-http-msg.h"
 #include "xf-stream.h"
+#include "xf-capture.h"
 #include "xf-protocol-common.h"
 #include "xf-protocol-http.h"
 
@@ -71,7 +72,7 @@ typedef struct _DPDK_MBUF_PRIV_TAG {
 
 #define MAX_RCV_PKTS 32
 
-static char unique_id[64] = {0};
+char unique_id[64] = {0};
 static char conf_file_path[128] = {0};
 
 static DKFW_CONFIG dkfw_config;
@@ -197,7 +198,7 @@ static int init_lwip_json(cJSON *json_root, void *stats_mem)
     return 0;
 }
 
-static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m)
+static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq)
 {
     int dpdklen;
     char *dpdkdat;
@@ -207,6 +208,10 @@ static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m)
 
     dpdklen = rte_pktmbuf_pkt_len(m);
     dpdkdat = rte_pktmbuf_mtod(m, char *);
+
+    if(unlikely(g_is_capturing)){
+        capture_do_capture(seq, dpdkdat, dpdklen);
+    }
 
     p = pbuf_alloc(PBUF_RAW, dpdklen, PBUF_POOL);
     if(!p) {
@@ -228,7 +233,6 @@ exit:
 
     return ret;
 }
-
 
 static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
 {
@@ -513,7 +517,7 @@ static int packet_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    pkt_dpdk_to_lwip_real(pkt);
+                    pkt_dpdk_to_lwip_real(pkt, seq);
                 }
             }
 
@@ -542,7 +546,7 @@ static int packet_loop(int seq)
                     }
                     if(likely(dst_core >= 0)){
                         if(dst_core == seq){
-                            pkt_dpdk_to_lwip_real(pkt);
+                            pkt_dpdk_to_lwip_real(pkt, seq);
                         }else{
                             if(unlikely(dkfw_send_pkt_to_process_core_q(dst_core, seq, pkt) < 0)){
                                 rte_pktmbuf_free(pkt);
@@ -585,7 +589,7 @@ static int packet_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    pkt_dpdk_to_lwip_real(pkt);
+                    pkt_dpdk_to_lwip_real(pkt, seq);
                 }
             }
 
@@ -683,6 +687,13 @@ static int init_generator_profile(SHARED_MEM_T *sm)
     }
 
     return 0;
+}
+
+static void at_exit_do(void)
+{
+    printf("===== xf-generator exit =====\n");
+    capture_close_all();
+    fflush(stdout);
 }
 
 int main(int argc, char **argv)
@@ -831,11 +842,22 @@ int main(int argc, char **argv)
         goto err;
     }
 
+    if(init_capture(json_root) < 0){
+        ret = -1;
+        goto err;
+    }
+
     init_protocol_http();
 
     g_generator_timer_bases = rte_zmalloc(NULL, sizeof(tvec_base_t) * g_pkt_process_core_num, RTE_CACHE_LINE_SIZE);
     for(i=0;i<g_pkt_process_core_num;i++){
         dkfw_init_timers(&g_generator_timer_bases[i], *g_elapsed_ms);
+    }
+
+    if (atexit(at_exit_do)) {
+        printf("register exit error.\n");
+        ret = -1;
+        goto err;
     }
 
     printf("config done.\n");
