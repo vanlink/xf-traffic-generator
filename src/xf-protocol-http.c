@@ -339,7 +339,6 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
 {
     int i;
     uint64_t value;
-    cJSON *json_item;
     int a, b;
 
     stream->local_address_ind = cJSON_GetObjectItem(json_root, "local_address_ind")->valueint;
@@ -362,18 +361,12 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
 
     stream->session_timeout_ms = cJSON_GetObjectItem(json_root, "session_timeout")->valueint * 1000;
 
-    json_item = cJSON_GetObjectItem(json_root, "conn_max_send");
-
     for(i=0;i<g_lwip_core_cnt;i++){
         value = stream->cps / g_lwip_core_cnt;
         if(i < (int)(stream->cps % g_lwip_core_cnt)){
             value++;
         }
         dkfw_cps_create(&stream->dkfw_cps[i], value, tsc_per_sec);
-
-        if(json_item && json_item->valueint){
-            stream->dkfw_cps[i].send_cnt_max = json_item->valueint;
-        }
     }
 
     stream->stream_send = protocol_common_send;

@@ -243,44 +243,17 @@ exit:
     return ret;
 }
 
-static uint64_t remain_cnt[MAX_CORES_PER_ROLE] = {0};
-
-static inline uint64_t get_real_send_cnt(int seq, uint64_t cnt)
-{
-    if(likely(cnt == 0)){
-        if(unlikely(remain_cnt[seq])){
-            remain_cnt[seq]--;
-            return 1;
-        }
-        return 0;
-    }
-
-    if(likely(cnt == 1)){
-        return 1;
-    }
-
-    remain_cnt[seq] += (cnt - 1);
-
-    if(remain_cnt[seq] > 64){
-        remain_cnt[seq] = 64;
-    }
-
-    return 1;
-}
-
 int protocol_common_send(STREAM *stream, int core, uint64_t tsc)
 {
-    int real_cnt, i;
-    uint64_t send_cnt = dkfw_cps_get(&stream->dkfw_cps[core], tsc);
+    uint64_t i;
+    uint64_t send_cnt = dkfw_cps_limited_get(&stream->dkfw_cps[core], tsc);
 
-    real_cnt = get_real_send_cnt(core, send_cnt);
-
-    for(i=0;i<real_cnt;i++){
+    for(i=0;i<send_cnt;i++){
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_ATTEMP);
         protocol_common_send_one(stream, core);
     }
 
-    return real_cnt;
+    return send_cnt;
 }
 
 int protocol_common_listen(STREAM *stream)
