@@ -142,11 +142,19 @@ static int init_networks_ipv4(cJSON *json_array_item,int interface_ind)
     uint32_t ip = 0, start = 0, end = 0, mask = 0, gw = 0;
     ip4_addr_t local_ipaddr, local_netmask, local_gw;
     struct netif *net_if;
+    cJSON *json;
+    int hash_cnt = 8192;
 
     str_to_ipv4(cJSON_GetObjectItem(json_array_item, "start")->valuestring, &start);
     str_to_ipv4(cJSON_GetObjectItem(json_array_item, "end")->valuestring, &end);
     str_to_ipv4(cJSON_GetObjectItem(json_array_item, "mask")->valuestring, &mask);
     str_to_ipv4(cJSON_GetObjectItem(json_array_item, "gw")->valuestring, &gw);
+
+    json = cJSON_GetObjectItem(json_array_item, "hashsize");
+    if(json){
+        hash_cnt = json->valueint;
+    }
+
     for(ip=start;ip<=end;ip++){
         IP4_ADDR(&local_ipaddr, (ip >> 24) & 0xff,
                             (ip >> 16) & 0xff,
@@ -169,7 +177,7 @@ static int init_networks_ipv4(cJSON *json_array_item,int interface_ind)
             printf("network addr already exist\n");
             return -1;
         }
-        if(!netif_add(net_if, &local_ipaddr, &local_netmask, &local_gw, NULL, netif_init_local, netif_input, 0)){
+        if(!netif_add(net_if, &local_ipaddr, &local_netmask, &local_gw, NULL, netif_init_local, netif_input, hash_cnt)){
             printf("netif_add err.\n");
             return -1;
         }
