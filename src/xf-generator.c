@@ -469,10 +469,15 @@ static int packet_loop(int seq)
             busy = 1;
 
             elapsed_ms_last = *g_elapsed_ms;
-            
+
+#if USE_TX_BUFFER
+            interface_tx_buffer_flush(seq);
+#endif
+
             sys_check_timeouts(*g_elapsed_ms);
 
             dkfw_run_timer(&g_generator_timer_bases[seq], *g_elapsed_ms);
+
         }
 
         time_0 = rte_rdtsc();

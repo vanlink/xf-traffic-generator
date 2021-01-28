@@ -15,6 +15,8 @@
 #include <rte_ethdev.h>
 #include <rte_malloc.h>
 
+#include "dpdkframework.h"
+
 #include "lwip/arch.h"
 #include "lwip/init.h"
 #include "lwip/netif.h"
@@ -26,8 +28,12 @@
 #include "xf-generator.h"
 #include "xf-capture.h"
 
+#define MAX_PKT_BURST 32
+
 static int lwip_netif_num_2_phy_port_ind[LWIP_INTERFACE_MAX + 2] = {0};
 static struct rte_mempool *pktmbuf_lwip2dpdk = NULL;
+
+static struct rte_eth_dev_tx_buffer *tx_buffer[MAX_PCI_NUM][MAX_CORES_PER_ROLE];
 
 static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
 {
@@ -40,6 +46,7 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     struct rte_ipv6_hdr *ipv6h;
     struct rte_tcp_hdr *tcphdr;
     struct rte_udp_hdr *udphdr;
+    int port, txq;
 
     m = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
     if(!m) {
@@ -101,13 +108,31 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     }else{
     }
 
-    ret = rte_eth_tx_burst(lwip_netif_num_2_phy_port_ind[intf->num], p->cpu_id, &m, 1);
+    port = lwip_netif_num_2_phy_port_ind[intf->num];
+    txq = p->cpu_id;
+
+#if USE_TX_BUFFER
+    rte_eth_tx_buffer(port, txq, tx_buffer[port][txq], m);
+#else
+    ret = rte_eth_tx_burst(port, txq, &m, 1);
     if (unlikely(ret < 1)) {
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_SEND_FAIL);
         rte_pktmbuf_free(m);
     }
+#endif
 
     return ERR_OK;
+}
+
+int interface_tx_buffer_flush(int seq)
+{
+    int i;
+
+    for(i=0;i<g_dkfw_interfaces_num;i++){
+        rte_eth_tx_buffer_flush(i, seq, tx_buffer[i][seq]);
+    }
+
+    return 0;
 }
 
 static err_t netif_init_local(struct netif *intf)
@@ -275,6 +300,18 @@ int init_networks(cJSON *json_root)
     char *val_string;
     uint32_t start;
     struct in6_addr start6;
+    int i, j;
+
+    for(i=0;i<g_dkfw_interfaces_num;i++){
+        for(j=0;j<g_pkt_process_core_num;j++){
+            tx_buffer[i][j] = rte_zmalloc_socket(NULL, RTE_ETH_TX_BUFFER_SIZE(MAX_PKT_BURST), 0, SOCKET_ID_ANY);
+            if (!tx_buffer[i][j]){
+                printf("init tx_buffer err.\n");
+                return -1;
+            }
+            rte_eth_tx_buffer_init(tx_buffer[i][j], MAX_PKT_BURST);
+        }
+    }
 
     pktmbuf_lwip2dpdk = rte_pktmbuf_pool_create("mbuflwip2dpdk", 65534, 512, 0, RTE_MBUF_DEFAULT_BUF_SIZE, SOCKET_ID_ANY);
     if(!pktmbuf_lwip2dpdk){
