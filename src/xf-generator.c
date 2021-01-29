@@ -493,7 +493,7 @@ static int packet_loop(int seq)
         for(i=0;i<g_stream_cnt;i++){
             stream = g_streams[i];
             if(stream->stream_send){
-                send_cnt = stream->stream_send(stream, seq, time_0);
+                send_cnt = stream->stream_send(stream, seq, time_0, *g_elapsed_ms);
                 if(send_cnt){
                     busy = 1;
                 }

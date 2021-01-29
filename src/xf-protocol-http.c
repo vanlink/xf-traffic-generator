@@ -351,6 +351,7 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     uint64_t value;
     int a, b;
     cJSON *json;
+    DKFW_CPS *cpsinfo;
 
     stream->local_address_ind = cJSON_GetObjectItem(json_root, "local_address_ind")->valueint;
     stream->remote_address_ind = cJSON_GetObjectItem(json_root, "remote_address_ind")->valueint;
@@ -398,7 +399,11 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
         if(i < (int)(stream->cps % g_lwip_core_cnt)){
             value++;
         }
-        dkfw_cps_create(&stream->dkfw_cps[i], value, tsc_per_sec);
+        cpsinfo = &stream->dkfw_cps[i];
+        dkfw_cps_create(cpsinfo, value, tsc_per_sec);
+        cpsinfo->cps_segs[0].cps_end = value;
+        cpsinfo->cps_segs[0].seg_total_ms = 30000;
+        cpsinfo->cps_segs[1].cps_start = value;
     }
 
     stream->stream_send = protocol_common_send;

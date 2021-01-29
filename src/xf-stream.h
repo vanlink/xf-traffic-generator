@@ -34,7 +34,7 @@ typedef struct _STREAM_t STREAM;
 typedef struct _session_info_t SESSION;
 
 typedef int (*STREAM_LISTEN_FUNC)(STREAM *);
-typedef int (*STREAM_SEND_FUNC)(STREAM *, int core, uint64_t tsc);
+typedef int (*STREAM_SEND_FUNC)(STREAM *, int core, uint64_t tsc, uint64_t ms);
 typedef int (*STREAM_SESSION_NEW_FUNC)(SESSION *, STREAM *, void *pcb);
 typedef int (*STREAM_CONNECTED_FUNC)(SESSION *, STREAM *, void *pcb);
 typedef int (*STREAM_SENT_FUNC)(SESSION *, STREAM *, void *pcb, uint16_t);

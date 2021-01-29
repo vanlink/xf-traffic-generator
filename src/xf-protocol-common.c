@@ -243,10 +243,10 @@ exit:
     return ret;
 }
 
-int protocol_common_send(STREAM *stream, int core, uint64_t tsc)
+int protocol_common_send(STREAM *stream, int core, uint64_t tsc, uint64_t ms)
 {
     uint64_t i;
-    uint64_t send_cnt = dkfw_cps_limited_get(&stream->dkfw_cps[core], tsc);
+    uint64_t send_cnt = dkfw_cps_limited_get(&stream->dkfw_cps[core], tsc, ms);
 
     for(i=0;i<send_cnt;i++){
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_ATTEMP);
