@@ -683,12 +683,12 @@ static int init_generator_profile(SHARED_MEM_T *sm)
 
     for(i=0;i<g_pkt_process_core_num;i++){
         profile = &sm->profile_pkt[i];
-        dkfw_profile_init(profile, PROFILE_ITEM_MAX);
+        dkfw_profile_init(profile, PROFILE_ITEM_MAX, 0);
     }
 
     for(i=0;i<g_pkt_distribute_core_num;i++){
         profile = &sm->profile_dispatch[i];
-        dkfw_profile_init(profile, PROFILE_ITEM_MAX);
+        dkfw_profile_init(profile, PROFILE_ITEM_MAX, 0);
     }
 
     return 0;
