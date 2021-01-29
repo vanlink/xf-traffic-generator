@@ -128,14 +128,19 @@ static int http_client_next_msg_check(SESSION *session, STREAM *stream, void *pc
     if(session->msgs_left){
         session->proto_state = HTTP_STATE_REQ;
         http_session_msg_next(session, stream);
+        session->response_ok = 0;
 
         if(http_client_send_data(session, stream, pcb) < 0){
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
             http_close_session(session, pcb, 1);
+            return -1;
         }
     }else{
         http_close_session(session, pcb, stream->close_with_rst);
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
+        if(stream->close_with_rst){
+            return -1;
+        }
     }
 
     return 0;
@@ -163,13 +168,9 @@ static int llhttp_on_response_complete(llhttp_t *llhttp)
 {
     SESSION *session = llhttp->data;
     STREAM *stream = session->stream;
-    struct altcp_pcb *pcb = (struct altcp_pcb *)session->pcb;
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_RESPONSE);
-
-    if(!session->timer_msg_interval_onfly){
-        http_client_next_msg_check(session, stream, pcb);
-    }
+    session->response_ok = 1;
 
     return HPE_OK;
 }
@@ -207,6 +208,7 @@ static int protocol_http_client_connecned(SESSION *session, STREAM *stream, void
 {
     session->proto_state = HTTP_STATE_REQ;
     http_session_msg_next(session, stream);
+    session->response_ok = 0;
 
     llhttp_init(&session->http_parser, HTTP_RESPONSE, &llhttp_settings_response);
     session->http_parser.data = session;
@@ -255,6 +257,14 @@ static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb
     if(HPE_OK != llhttp_execute(&session->http_parser, data, datalen)){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL);
         return -1;
+    }
+
+    if(session->response_ok){
+        if(!session->timer_msg_interval_onfly){
+            if(http_client_next_msg_check(session, stream, pcb) < 0){
+                return -1;
+            }
+        }
     }
 
     return 0;
@@ -340,6 +350,7 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     int i;
     uint64_t value;
     int a, b;
+    cJSON *json;
 
     stream->local_address_ind = cJSON_GetObjectItem(json_root, "local_address_ind")->valueint;
     stream->remote_address_ind = cJSON_GetObjectItem(json_root, "remote_address_ind")->valueint;
@@ -353,13 +364,34 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     }
     stream->stream_is_ipv6 = a;
 
-    stream->cps = cJSON_GetObjectItem(json_root, "cps")->valueint;
+    json = cJSON_GetObjectItem(json_root, "cps");
+    if(json){
+        stream->cps = json->valueint;
+    }
     stream->cps = stream->cps ? stream->cps : 1;
-    stream->rpc = cJSON_GetObjectItem(json_root, "rpc")->valueint;
-    stream->rpc = stream->rpc ? stream->rpc : 1;
-    stream->ipr = cJSON_GetObjectItem(json_root, "ipr")->valueint;
 
-    stream->session_timeout_ms = cJSON_GetObjectItem(json_root, "session_timeout")->valueint * 1000;
+    json = cJSON_GetObjectItem(json_root, "rpc");
+    if(json){
+        stream->rpc = json->valueint;
+    }
+    stream->rpc = stream->rpc ? stream->rpc : 1;
+
+    json = cJSON_GetObjectItem(json_root, "ipr");
+    if(json){
+        stream->ipr = json->valueint;
+    }
+
+    json = cJSON_GetObjectItem(json_root, "session_timeout");
+    if(json){
+        stream->session_timeout_ms = json->valueint * 1000;
+    }else{
+        stream->session_timeout_ms = (stream->rpc * stream->ipr + 3) * 1000;
+    }
+
+    json = cJSON_GetObjectItem(json_root, "close_with_rst");
+    if(json){
+        stream->close_with_rst = json->valueint;
+    }
 
     for(i=0;i<g_lwip_core_cnt;i++){
         value = stream->cps / g_lwip_core_cnt;
