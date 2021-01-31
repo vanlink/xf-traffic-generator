@@ -22,6 +22,7 @@
 #include "xf-protocol-common.h"
 #include "xf-address.h"
 #include "xf-generator.h"
+#include "xf-simuser.h"
 
 // err always OK
 static inline err_t cb_connected(void *arg, struct altcp_pcb *tpcb, err_t err)
@@ -159,7 +160,7 @@ static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
     return ERR_OK;
 }
 
-static int protocol_common_send_one(STREAM *stream, int core)
+int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
 {
     SESSION *session = session_get();
     struct altcp_pcb *newpcb = NULL;
@@ -189,6 +190,7 @@ static int protocol_common_send_one(STREAM *stream, int core)
 
     session->pcb = newpcb;
     session->stream = stream;
+    session->simuser_ind = simuser_ind;
 
     if(stream->is_tls){
         pcb = newpcb->inner_conn ? ((struct altcp_pcb *)newpcb->inner_conn)->state : NULL;
@@ -243,17 +245,51 @@ exit:
     return ret;
 }
 
-int protocol_common_send(STREAM *stream, int core, uint64_t tsc, uint64_t ms)
+int protocol_common_send_cps(STREAM *stream, int core, uint64_t tsc, uint64_t ms)
 {
     uint64_t i;
     uint64_t send_cnt = dkfw_cps_limited_get(&stream->dkfw_cps[core], tsc, ms);
 
     for(i=0;i<send_cnt;i++){
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_ATTEMP);
-        protocol_common_send_one(stream, core);
+        protocol_common_send_one(stream, core, 0);
     }
 
     return send_cnt;
+}
+
+int protocol_common_send_simuser(STREAM *stream, int core, uint64_t tsc, uint64_t ms)
+{
+    int i;
+    int simusers_dst = (int)dkfw_cps_limited_get(&stream->dkfw_cps[core], tsc, ms);
+    int simusers_curr = stream->stream_cores[core].simuser_active_cnt;
+    int simusers_all;
+    SIMUSER *simusers;
+
+    if(simusers_dst == simusers_curr){
+        return 0;
+    }
+
+    simusers = stream->stream_cores[core].simusers;
+
+    if(simusers_dst < simusers_curr){
+        for(i=simusers_dst;i<simusers_curr;i++){
+            simuser_stop(&simusers[i]);
+        }
+    }else{
+        simusers_all = stream->stream_cores[core].simuser_all_cnt;
+        simusers_dst = (simusers_dst < simusers_all) ? simusers_dst : simusers_all;
+        for(i=simusers_curr;i<simusers_dst;i++){
+            if(simusers[i].simusr_state != SIMUSR_ST_DISABLED){
+                continue;
+            }
+            simuser_start(stream, &simusers[i], core);
+        }
+    }
+
+    stream->stream_cores[core].simuser_active_cnt = simusers_dst;
+
+    return 0;
 }
 
 int protocol_common_listen(STREAM *stream)

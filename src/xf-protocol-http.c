@@ -26,6 +26,7 @@
 #include "xf-session.h"
 #include "xf-generator.h"
 #include "xf-protocol-http-msg.h"
+#include "xf-simuser.h"
 
 #include "llhttp.h"
 
@@ -133,9 +134,15 @@ static int http_client_next_msg_check(SESSION *session, STREAM *stream, void *pc
         if(http_client_send_data(session, stream, pcb) < 0){
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
             http_close_session(session, pcb, 1);
+            if(stream->stream_is_simuser){
+                simuser_delayed_attemp(&stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
+            }
             return -1;
         }
     }else{
+        if(stream->stream_is_simuser){
+            simuser_attemp(stream, &stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
+        }
         http_close_session(session, pcb, stream->close_with_rst);
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
         if(stream->close_with_rst){
@@ -198,6 +205,10 @@ static void timer_func_session_timeout(struct timer_list *timer, unsigned long a
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_SESSION_TIMEOUT);
 
+    if(stream->stream_is_simuser){
+        simuser_delayed_attemp(&stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
+    }
+
     http_close_session(session, pcb, 1);
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
@@ -239,6 +250,10 @@ static int protocol_http_client_sent(SESSION *session, STREAM *stream, void *pcb
 
 static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, void *pcb)
 {
+    if(stream->stream_is_simuser){
+        simuser_delayed_attemp(&stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
+    }
+
     http_close_session(session, pcb, stream->close_with_rst);
 
     return 0;
@@ -272,7 +287,9 @@ static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb
 
 static int protocol_http_client_err(SESSION *session, STREAM *stream)
 {
-    (void)stream;
+    if(stream->stream_is_simuser){
+        simuser_delayed_attemp(&stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
+    }
 
     http_close_session(session, NULL, 0);
     return 0;
@@ -347,11 +364,13 @@ static int protocol_http_server_session_new(SESSION *session, STREAM *stream, vo
 
 int init_stream_http_client(cJSON *json_root, STREAM *stream)
 {
-    int i;
+    int i, j;
     uint64_t value;
     int a, b;
     cJSON *json;
     DKFW_CPS *cpsinfo;
+    int is_simuser = 0;
+    STREAM_CORE *core;
 
     stream->local_address_ind = cJSON_GetObjectItem(json_root, "local_address_ind")->valueint;
     stream->remote_address_ind = cJSON_GetObjectItem(json_root, "remote_address_ind")->valueint;
@@ -364,12 +383,6 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
         return -1;
     }
     stream->stream_is_ipv6 = a;
-
-    json = cJSON_GetObjectItem(json_root, "cps");
-    if(json){
-        stream->cps = json->valueint;
-    }
-    stream->cps = stream->cps ? stream->cps : 1;
 
     json = cJSON_GetObjectItem(json_root, "rpc");
     if(json){
@@ -394,19 +407,54 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
         stream->close_with_rst = json->valueint;
     }
 
-    for(i=0;i<g_lwip_core_cnt;i++){
-        value = stream->cps / g_lwip_core_cnt;
-        if(i < (int)(stream->cps % g_lwip_core_cnt)){
-            value++;
+    json = cJSON_GetObjectItem(json_root, "cps");
+    if(!json){
+        json = cJSON_GetObjectItem(json_root, "simuser");
+        if(json){
+            is_simuser = 1;
+        }else{
+            printf("cps/simuser required.\n");
+            return -1;
         }
-        cpsinfo = &stream->dkfw_cps[i];
-        dkfw_cps_create(cpsinfo, value, tsc_per_sec);
-        cpsinfo->cps_segs[0].cps_end = value;
-        cpsinfo->cps_segs[0].seg_total_ms = 30000;
-        cpsinfo->cps_segs[1].cps_start = value;
+    }
+    stream->stream_is_simuser = is_simuser;
+    if(json->type == cJSON_Number){
+        stream->cps = json->valueint;
+        stream->cps = stream->cps ? stream->cps : 1;
+        for(i=0;i<g_lwip_core_cnt;i++){
+            core = &stream->stream_cores[i];
+            value = stream->cps / g_lwip_core_cnt;
+            if(i < (int)(stream->cps % g_lwip_core_cnt)){
+                value++;
+            }
+            cpsinfo = &stream->dkfw_cps[i];
+            dkfw_cps_create(cpsinfo, value, tsc_per_sec);
+            cpsinfo->cps_segs[0].cps_end = value;
+            cpsinfo->cps_segs[0].seg_total_ms = 30000;
+            cpsinfo->cps_segs[1].cps_start = value;
+            if(is_simuser && value){
+                core->simuser_all_cnt = value;
+                core->simusers = rte_zmalloc(NULL, sizeof(SIMUSER) * value, RTE_CACHE_LINE_SIZE);
+                for(j=0;j<(int)value;j++){
+                    core->simusers[j].simusr_ind = i;
+                    core->simusers[j].simusr_state = SIMUSR_ST_DISABLED;
+                    core->simusers[j].simusr_stream = stream;
+                }
+            }
+        }
+        goto next;
+    }else if(json->type == cJSON_Array){
+    }else{
+        printf("cps/simuser invalid.\n");
+        return -1;
     }
 
-    stream->stream_send = protocol_common_send;
+next:
+    if(is_simuser){
+        stream->stream_send = protocol_common_send_simuser;
+    }else{
+        stream->stream_send = protocol_common_send_cps;
+    }
     stream->stream_session_new = protocol_http_client_session_new;
     stream->stream_connected = protocol_http_client_connecned;
     stream->stream_sent = protocol_http_client_sent;

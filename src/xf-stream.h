@@ -7,6 +7,7 @@
 #include "lwip/opt.h"
 #include "lwip/netif.h"
 #include "xf-session.h"
+#include "xf-simuser.h"
 
 #define STREAM_CNT_MAX 32
 
@@ -42,6 +43,12 @@ typedef int (*STREAM_REMOTE_CLOSE_FUNC)(SESSION *, STREAM *, void *pcb);
 typedef int (*STREAM_RECV_FUNC)(SESSION *, STREAM *, void *pcb, char *data, int datalen);
 typedef int (*STREAM_ERR_FUNC)(SESSION *, STREAM *);
 
+typedef struct _STREAM_CORE_t {
+    SIMUSER *simusers;
+    int simuser_active_cnt;
+    int simuser_all_cnt;
+} STREAM_CORE;
+
 typedef struct _STREAM_t {
     int type;
 
@@ -49,6 +56,7 @@ typedef struct _STREAM_t {
     int remote_address_ind;
     int http_message_ind;
 
+    int stream_is_simuser;
     int stream_is_ipv6;
     int is_tls;
     int close_with_rst;
@@ -75,6 +83,8 @@ typedef struct _STREAM_t {
     STREAM_RECV_FUNC stream_recv;
     STREAM_ERR_FUNC stream_err;
     STREAM_LISTEN_FUNC stream_listen;
+
+    STREAM_CORE stream_cores[MAX_CORES_PER_ROLE];
 } STREAM;
 
 extern int g_stream_cnt;

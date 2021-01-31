@@ -16,6 +16,8 @@ typedef struct _session_info_t {
              timer_session_timeout_onfly :1,
              spare1      :10;
 
+    uint32_t simuser_ind;
+
     const char *msg;
     uint32_t msg_len;
 
