@@ -436,7 +436,7 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
                 core->simuser_all_cnt = value;
                 core->simusers = rte_zmalloc(NULL, sizeof(SIMUSER) * value, RTE_CACHE_LINE_SIZE);
                 for(j=0;j<(int)value;j++){
-                    core->simusers[j].simusr_ind = i;
+                    core->simusers[j].simusr_ind = j;
                     core->simusers[j].simusr_state = SIMUSR_ST_DISABLED;
                     core->simusers[j].simusr_stream = stream;
                 }
