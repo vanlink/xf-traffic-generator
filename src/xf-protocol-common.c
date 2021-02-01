@@ -261,10 +261,12 @@ int protocol_common_send_cps(STREAM *stream, int core, uint64_t tsc, uint64_t ms
 int protocol_common_send_simuser(STREAM *stream, int core, uint64_t tsc, uint64_t ms)
 {
     int i;
-    int simusers_dst = (int)dkfw_cps_limited_get(&stream->stream_cores[core].stream_cps, tsc, ms);
+    int simusers_dst = (int)dkfw_cps_abs_value_get(&stream->stream_cores[core].stream_cps, ms);
     int simusers_curr = stream->stream_cores[core].simuser_active_cnt;
-    int simusers_all;
+    int simusers_all = 0;
     SIMUSER *simusers;
+
+    (void)tsc;
 
     if(simusers_dst == simusers_curr){
         return 0;
@@ -289,7 +291,7 @@ int protocol_common_send_simuser(STREAM *stream, int core, uint64_t tsc, uint64_
 
     stream->stream_cores[core].simuser_active_cnt = simusers_dst;
 
-    return 0;
+    return 1;
 }
 
 int protocol_common_listen(STREAM *stream)
