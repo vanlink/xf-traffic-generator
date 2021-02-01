@@ -91,5 +91,5 @@ if TO_LWIP or TO_GENERATOR or TO_DISPATCH or TO_STREAM or TO_INTERFACE:
     (ret, outstr, errstr) = run_cmd_wrapper(cmd, check_interval=0.1, timeout=3)
     
     obj = json.loads(outstr)
-    s = json.dumps(obj, indent=2)
+    s = json.dumps(NonzeroDict(obj), indent=2)
     print(s)

@@ -22,6 +22,43 @@ DAEMON_PY_OUT = "xf-daemon-py.out"
 
 OK_STR = "===== xf-generator"
 
+class NonzeroDict(dict):
+    def __init__(self, d):
+        dict.__init__(self, d)
+        for key, val in d.items():
+            if not val:
+                self.pop(key)
+                continue
+
+            if isinstance(val, (str,)):
+                if val.isdigit():
+                    val = int(val)
+                    if val:
+                        self[key] = val
+                    else:
+                        self.pop(key)
+                    continue
+            elif isinstance(val, dict):
+                tmp = NonzeroDict(val)
+                if tmp:
+                    self[key] = tmp
+                else:
+                    self.pop(key)
+                continue
+            elif isinstance(val, list):
+                dstarray = []
+                for i in val:
+                    tmp = NonzeroDict(i)
+                    if tmp:
+                        dstarray.append(tmp)
+                if dstarray:
+                    self[key] = dstarray
+                else:
+                    self.pop(key)
+                continue
+
+            self[key] = val
+
 class StatDict(dict):
     def __init__(self, d):
         dict.__init__(self, d)
