@@ -362,15 +362,164 @@ static int protocol_http_server_session_new(SESSION *session, STREAM *stream, vo
     return 0;
 }
 
-int init_stream_http_client(cJSON *json_root, STREAM *stream)
+static void init_stream_cps_one_core(STREAM *stream, int is_simuser, int core_ind, uint64_t value)
+{
+    int j;
+    STREAM_CORE *core = &stream->stream_cores[core_ind];
+    DKFW_CPS *cpsinfo = &core->stream_cps;
+
+    dkfw_cps_create(cpsinfo, tsc_per_sec);
+
+    cpsinfo->cps_segs[0].cps_end = value;
+    cpsinfo->cps_segs[0].seg_total_ms = 30000;
+    cpsinfo->cps_segs[1].cps_start = value;
+
+    if(is_simuser && value){
+        core->simuser_all_cnt = value;
+        core->simusers = rte_zmalloc(NULL, sizeof(SIMUSER) * value, RTE_CACHE_LINE_SIZE);
+        for(j=0;j<(int)value;j++){
+            core->simusers[j].simusr_ind = j;
+            core->simusers[j].simusr_state = SIMUSR_ST_DISABLED;
+            core->simusers[j].simusr_stream = stream;
+        }
+    }
+}
+
+static uint64_t get_per_core_value(uint64_t value_all, int core_ind)
+{
+    uint64_t value = value_all / g_lwip_core_cnt;
+
+    if(core_ind < (int)(value_all % g_lwip_core_cnt)){
+        value++;
+    }
+
+    return value;
+}
+
+static int init_stream_cps_array(cJSON *json_root, STREAM *stream, int is_simuser)
 {
     int i, j;
     uint64_t value;
+    cJSON *json_seg, *json;
+    uint64_t max_cps = 0;
+    uint64_t start, end, time_ms;
+    uint64_t start_percore, end_percore;
+    STREAM_CORE *core;
+    DKFW_CPS *cpsinfo;
+    DKFW_CPS_SEG *seg;
+    int cnt = 0;
+
+    for(i=0;i<g_lwip_core_cnt;i++){
+        core = &stream->stream_cores[i];
+        cpsinfo = &core->stream_cps;
+
+        dkfw_cps_create(cpsinfo, tsc_per_sec);
+    }
+
+    cJSON_ArrayForEach(json_seg, json_root){
+
+        if(cnt >= DKFW_CPS_SEGS_MAX){
+            printf("too many cps segs.\n");
+            return -1;
+        }
+
+        json = cJSON_GetObjectItem(json_seg, "start");
+        if(!json){
+            printf("start value req.\n");
+            return -1;
+        }
+        start = json->valueint;
+
+        json = cJSON_GetObjectItem(json_seg, "end");
+        if(json){
+            end = json->valueint;
+        }else{
+            end = start;
+        }
+
+        json = cJSON_GetObjectItem(json_seg, "time");
+        if(json){
+            time_ms = json->valueint * 1000;
+        }else{
+            time_ms = 0;
+        }
+
+        if(max_cps < start){
+            max_cps = start;
+        }
+        if(max_cps < end){
+            max_cps = end;
+        }
+
+        for(i=0;i<g_lwip_core_cnt;i++){
+            core = &stream->stream_cores[i];
+            cpsinfo = &core->stream_cps;
+            seg = &cpsinfo->cps_segs[cpsinfo->cps_segs_cnt];
+
+            start_percore = get_per_core_value(start, i);
+            end_percore = get_per_core_value(end, i);
+
+            seg->cps_start = start_percore;
+            seg->cps_end = end_percore;
+            seg->seg_total_ms = time_ms;
+
+            cpsinfo->cps_segs_cnt++;
+        }
+
+        cnt++;
+    }
+
+    if(!is_simuser){
+        return 0;
+    }
+
+    for(i=0;i<g_lwip_core_cnt;i++){
+        value = get_per_core_value(max_cps, i);
+        if(!value){
+            continue;
+        }
+        core = &stream->stream_cores[i];
+        core->simuser_all_cnt = value;
+        core->simusers = rte_zmalloc(NULL, sizeof(SIMUSER) * value, RTE_CACHE_LINE_SIZE);
+        for(j=0;j<(int)value;j++){
+            core->simusers[j].simusr_ind = j;
+            core->simusers[j].simusr_state = SIMUSR_ST_DISABLED;
+            core->simusers[j].simusr_stream = stream;
+        }
+    }
+
+    return 0;
+}
+
+static int init_stream_cps(cJSON *json, STREAM *stream, int is_simuser)
+{
+    int i;
+    uint64_t value, cps;
+
+    if(json->type == cJSON_Number){
+        cps = json->valueint;
+        cps = cps ? cps : 1;
+        for(i=0;i<g_lwip_core_cnt;i++){
+            value = get_per_core_value(cps, i);
+            init_stream_cps_one_core(stream, is_simuser, i, value);
+        }
+    }else if(json->type == cJSON_Array){
+        if(init_stream_cps_array(json, stream, is_simuser) < 0){
+            return -1;
+        }
+    }else{
+        printf("cps/simuser invalid.\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int init_stream_http_client(cJSON *json_root, STREAM *stream)
+{
     int a, b;
     cJSON *json;
-    DKFW_CPS *cpsinfo;
     int is_simuser = 0;
-    STREAM_CORE *core;
 
     stream->local_address_ind = cJSON_GetObjectItem(json_root, "local_address_ind")->valueint;
     stream->remote_address_ind = cJSON_GetObjectItem(json_root, "remote_address_ind")->valueint;
@@ -418,38 +567,10 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
         }
     }
     stream->stream_is_simuser = is_simuser;
-    if(json->type == cJSON_Number){
-        stream->cps = json->valueint;
-        stream->cps = stream->cps ? stream->cps : 1;
-        for(i=0;i<g_lwip_core_cnt;i++){
-            core = &stream->stream_cores[i];
-            value = stream->cps / g_lwip_core_cnt;
-            if(i < (int)(stream->cps % g_lwip_core_cnt)){
-                value++;
-            }
-            cpsinfo = &stream->dkfw_cps[i];
-            dkfw_cps_create(cpsinfo, value, tsc_per_sec);
-            cpsinfo->cps_segs[0].cps_end = value;
-            cpsinfo->cps_segs[0].seg_total_ms = 30000;
-            cpsinfo->cps_segs[1].cps_start = value;
-            if(is_simuser && value){
-                core->simuser_all_cnt = value;
-                core->simusers = rte_zmalloc(NULL, sizeof(SIMUSER) * value, RTE_CACHE_LINE_SIZE);
-                for(j=0;j<(int)value;j++){
-                    core->simusers[j].simusr_ind = j;
-                    core->simusers[j].simusr_state = SIMUSR_ST_DISABLED;
-                    core->simusers[j].simusr_stream = stream;
-                }
-            }
-        }
-        goto next;
-    }else if(json->type == cJSON_Array){
-    }else{
-        printf("cps/simuser invalid.\n");
+    if(init_stream_cps(json, stream, is_simuser) < 0){
         return -1;
     }
 
-next:
     if(is_simuser){
         stream->stream_send = protocol_common_send_simuser;
     }else{

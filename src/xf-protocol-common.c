@@ -248,7 +248,7 @@ exit:
 int protocol_common_send_cps(STREAM *stream, int core, uint64_t tsc, uint64_t ms)
 {
     uint64_t i;
-    uint64_t send_cnt = dkfw_cps_limited_get(&stream->dkfw_cps[core], tsc, ms);
+    uint64_t send_cnt = dkfw_cps_limited_get(&stream->stream_cores[core].stream_cps, tsc, ms);
 
     for(i=0;i<send_cnt;i++){
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_ATTEMP);
@@ -261,7 +261,7 @@ int protocol_common_send_cps(STREAM *stream, int core, uint64_t tsc, uint64_t ms
 int protocol_common_send_simuser(STREAM *stream, int core, uint64_t tsc, uint64_t ms)
 {
     int i;
-    int simusers_dst = (int)dkfw_cps_limited_get(&stream->dkfw_cps[core], tsc, ms);
+    int simusers_dst = (int)dkfw_cps_limited_get(&stream->stream_cores[core].stream_cps, tsc, ms);
     int simusers_curr = stream->stream_cores[core].simuser_active_cnt;
     int simusers_all;
     SIMUSER *simusers;

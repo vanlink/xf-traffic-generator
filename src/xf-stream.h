@@ -47,6 +47,8 @@ typedef struct _STREAM_CORE_t {
     SIMUSER *simusers;
     int simuser_active_cnt;
     int simuser_all_cnt;
+
+    DKFW_CPS stream_cps;
 } STREAM_CORE;
 
 typedef struct _STREAM_t {
@@ -65,13 +67,10 @@ typedef struct _STREAM_t {
     struct netif *listen_net_if;
     uint16_t listen_port;
 
-    uint64_t cps;  // conns per second
     uint64_t rpc;  // reqs per conn
     uint64_t ipr;  // interval per req(between reqs), in sec
 
     uint64_t session_timeout_ms;
-
-    DKFW_CPS dkfw_cps[LWIP_CORES_MAX];
 
     DKFW_STATS *stream_stat;
 
