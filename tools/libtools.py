@@ -229,3 +229,18 @@ def is_local_port_in_use(port):
             pass
     
     return False
+
+def get_unique_lport(unique):
+    cmd = 'ps -e -o pid,command|egrep "%s .*\-\-%s=%s "' % (DAEMON_EXEC_NAME, UNIQUE_KEY, unique)
+    (ret, outstr, errstr) = run_cmd_wrapper(cmd, check_interval=0.1, timeout=2)
+    if not outstr:
+        return None
+    outstr = outstr.strip()
+    if not outstr:
+        return None
+
+    m = re.match(r'^.+ -p (\d+)', str(outstr))
+    if not m:
+        return None
+
+    return int(m.groups()[0])
