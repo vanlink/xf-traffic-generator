@@ -86,6 +86,7 @@ if TO_LWIP or TO_GENERATOR or TO_DISPATCH or TO_STREAM or TO_INTERFACE:
     lport = get_unique_lport(UNIQUE)
     if not lport:
         print("Unique ID [%s] local port not found." % (UNIQUE))
+        sys.exit(-1)
 
     cmd = 'curl http://127.0.0.1:%s/%s' % (lport, url)
     (ret, outstr, errstr) = run_cmd_wrapper(cmd, check_interval=0.1, timeout=3)

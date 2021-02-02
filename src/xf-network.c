@@ -164,35 +164,92 @@ static err_t netif_init_local(struct netif *intf)
 
 static int init_networks_ipv4(cJSON *json_array_item,int interface_ind)
 {
-    uint32_t ip = 0, start = 0, end = 0, mask = 0, gw = 0;
-    ip4_addr_t local_ipaddr, local_netmask, local_gw;
+    uint32_t ip = 0, start = 0, end = 0, mask = 0, gw = 0, vrouter = 0;
+    ip4_addr_t local_ipaddr, local_netmask, local_gw, local_vrouter;
     struct netif *net_if;
+    struct netif *netif_vrouter = NULL;
     cJSON *json;
     int hash_cnt = 8192;
 
-    str_to_ipv4(cJSON_GetObjectItem(json_array_item, "start")->valuestring, &start);
-    str_to_ipv4(cJSON_GetObjectItem(json_array_item, "end")->valuestring, &end);
-    str_to_ipv4(cJSON_GetObjectItem(json_array_item, "mask")->valuestring, &mask);
-    str_to_ipv4(cJSON_GetObjectItem(json_array_item, "gw")->valuestring, &gw);
+    json = cJSON_GetObjectItem(json_array_item, "start");
+    if(!json){
+        printf("network start req.\n");
+        return -1;
+    }
+    if(str_to_ipv4(json->valuestring, &start) < 0){
+        printf("invalid network ip.\n");
+        return -1;
+    }
+
+    json = cJSON_GetObjectItem(json_array_item, "end");
+    if(json){
+        if(str_to_ipv4(json->valuestring, &end) < 0){
+            printf("invalid network ip.\n");
+            return -1;
+        }
+    }else{
+        end = start;
+    }
+
+    json = cJSON_GetObjectItem(json_array_item, "mask");
+    if(json){
+        if(str_to_ipv4(json->valuestring, &mask) < 0){
+            printf("invalid network mask.\n");
+            return -1;
+        }
+    }else{
+        printf("network mask req.\n");
+        return -1;
+    }
+
+    json = cJSON_GetObjectItem(json_array_item, "gw");
+    if(json){
+        if(str_to_ipv4(json->valuestring, &gw) < 0){
+            printf("invalid network gateway.\n");
+            return -1;
+        }
+    }
+
+    json = cJSON_GetObjectItem(json_array_item, "vrouter");
+    if(json){
+        if(str_to_ipv4(json->valuestring, &vrouter) < 0){
+            printf("invalid network vrouter.\n");
+            return -1;
+        }
+    }
 
     json = cJSON_GetObjectItem(json_array_item, "hashsize");
     if(json){
         hash_cnt = json->valueint;
     }
 
+    IP4_ADDR(&local_netmask, (mask >> 24) & 0xff,
+                            (mask >> 16) & 0xff,
+                            (mask >> 8) & 0xff,
+                            (mask >> 0) & 0xff);
+    IP4_ADDR(&local_gw, (gw >> 24) & 0xff,
+                            (gw >> 16) & 0xff,
+                            (gw >> 8) & 0xff,
+                            (gw >> 0) & 0xff);
+    IP4_ADDR(&local_vrouter, (vrouter >> 24) & 0xff,
+                            (vrouter >> 16) & 0xff,
+                            (vrouter >> 8) & 0xff,
+                            (vrouter >> 0) & 0xff);
+
+    if(vrouter){
+        netif_vrouter = lwip_get_netif_from_ipv4(ip4_addr_get_u32(&local_vrouter));
+        if(!netif_vrouter){
+            printf("init net if vrouter interface not found.\n");
+            return -1;
+        }
+    }
+
+
     for(ip=start;ip<=end;ip++){
         IP4_ADDR(&local_ipaddr, (ip >> 24) & 0xff,
                             (ip >> 16) & 0xff,
                             (ip >> 8) & 0xff,
                             (ip >> 0) & 0xff);
-        IP4_ADDR(&local_netmask, (mask >> 24) & 0xff,
-                                (mask >> 16) & 0xff,
-                                (mask >> 8) & 0xff,
-                                (mask >> 0) & 0xff);
-        IP4_ADDR(&local_gw, (gw >> 24) & 0xff,
-                                (gw >> 16) & 0xff,
-                                (gw >> 8) & 0xff,
-                                (gw >> 0) & 0xff);
         net_if = rte_zmalloc(NULL, sizeof(struct netif), RTE_CACHE_LINE_SIZE);
         if(!net_if){
             printf("init net if mem error.\n");
@@ -206,6 +263,7 @@ static int init_networks_ipv4(cJSON *json_array_item,int interface_ind)
             printf("netif_add err.\n");
             return -1;
         }
+        net_if->netif_vrouter = netif_vrouter;
         lwip_netif_num_2_phy_port_ind[net_if->num] = interface_ind;
         netif_set_link_up(net_if);
         netif_set_up(net_if);
