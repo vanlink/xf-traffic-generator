@@ -51,6 +51,7 @@
 #include "xf-session.h"
 #include "xf-network.h"
 #include "xf-address.h"
+#include "xf-certificate.h"
 #include "xf-protocol-http-msg.h"
 #include "xf-stream.h"
 #include "xf-capture.h"
@@ -838,6 +839,11 @@ int main(int argc, char **argv)
     }
 
     if(init_protocol_http_msg(json_root) < 0){
+        ret = -1;
+        goto err;
+    }
+
+    if(init_certificate(json_root) < 0){
         ret = -1;
         goto err;
     }

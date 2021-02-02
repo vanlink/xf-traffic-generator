@@ -40,7 +40,7 @@ int init_certificate(cJSON *json_root)
     cJSON_ArrayForEach(json_array_item, json_messages){
         cert = &certificates[certificate_num];
 
-        json = cJSON_GetObjectItem(json_root, "certificate");
+        json = cJSON_GetObjectItem(json_array_item, "certificate");
         if(!json){
             printf("no certificate file.\n");
             return -1;
@@ -51,7 +51,7 @@ int init_certificate(cJSON *json_root)
             return -1;
         }
 
-        json = cJSON_GetObjectItem(json_root, "key");
+        json = cJSON_GetObjectItem(json_array_item, "key");
         if(!json){
             printf("no key file.\n");
             return -1;
@@ -62,7 +62,7 @@ int init_certificate(cJSON *json_root)
             return -1;
         }
 
-        json = cJSON_GetObjectItem(json_root, "password");
+        json = cJSON_GetObjectItem(json_array_item, "password");
         if(json){
             strcpy(cert->password, json->valuestring);
         }

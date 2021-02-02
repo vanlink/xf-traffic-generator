@@ -24,6 +24,8 @@
 
 #include "cjson/cJSON.h"
 
+#include "mbedtls/ssl_ciphersuites.h"
+
 #include "lwip/arch.h"
 #include "lwip/init.h"
 #include "lwip/timeouts.h"
@@ -43,6 +45,7 @@
 #include "xf-protocol-common.h"
 #include "xf-protocol-http.h"
 #include "xf-sharedmem.h"
+#include "xf-certificate.h"
 
 int g_stream_cnt = 0;
 STREAM *g_streams[STREAM_CNT_MAX];
@@ -70,12 +73,92 @@ static int init_stream_stats(DKFW_STATS *stats)
     return 0;
 }
 
+static int init_streams_tls_ciphersuites(STREAM *stream, cJSON *json_root)
+{
+    cJSON *json_array_item;
+    const mbedtls_ssl_ciphersuite_t *cs;
+    int ind = 0;
+
+    json_root = cJSON_GetObjectItem(json_root, "ciphersuites");
+    if(json_root){
+        cJSON_ArrayForEach(json_array_item, json_root){
+            cs = mbedtls_ssl_ciphersuite_from_string(json_array_item->valuestring);
+            if(!cs){
+                printf("invalid ciphersuite [%s].\n", json_array_item->valuestring);
+                return -1;
+            }
+            stream->tls_ciphersuites[ind] = cs->id;
+            ind++;
+        }
+    }
+
+    if(!ind){
+        cs = mbedtls_ssl_ciphersuite_from_string("TLS-RSA-WITH-AES-256-CBC-SHA256");
+        if(!cs){
+            printf("invalid ciphersuite [].\n");
+            return -1;
+        }
+        stream->tls_ciphersuites[ind] = cs->id;
+    }
+
+    return 0;
+}
+
+static int init_streams_tls_client(STREAM *stream, cJSON *json_root)
+{
+    stream->tls_client_config = altcp_tls_create_config_client(NULL, 0);
+    if(!stream->tls_client_config){
+        printf("create ssl client config fail.\n");
+        return -1;
+    }
+    if(init_streams_tls_ciphersuites(stream, json_root) < 0){
+        return -1;
+    }
+    altcp_tls_ssl_conf_ciphersuites(stream->tls_client_config, stream->tls_ciphersuites);
+
+    return 0;
+}
+
+static int init_streams_tls_server(STREAM *stream, cJSON *json_root)
+{
+    cJSON *json = cJSON_GetObjectItem(json_root, "certificate_ind");
+    char *cert;
+    int cert_len;
+    char *key;
+    int key_len;
+    char *password;
+
+    if(!json){
+        printf("certificate_ind req.\n");
+        return -1;
+    }
+
+    if(certificate_get(json->valueint, &cert, &cert_len, &key, &key_len, &password) < 0){
+        printf("certificate_ind get err.\n");
+        return -1;
+    }
+
+    stream->tls_server_config = altcp_tls_create_config_server_privkey_cert((u8_t *)key, key_len + 1, NULL, 0, (u8_t *)cert, cert_len + 1);
+    if(!stream->tls_server_config){
+        printf("create ssl server config fail.\n");
+        return -1;
+    }
+
+    if(init_streams_tls_ciphersuites(stream, json_root) < 0){
+        return -1;
+    }
+    altcp_tls_ssl_conf_ciphersuites(stream->tls_server_config, stream->tls_ciphersuites);
+
+    return 0;
+}
+
 int init_streams(cJSON *json_root)
 {
     cJSON *json_stream;
     cJSON *json_array_item;
     STREAM *stream;
     char *str;
+    cJSON *json;
 
     memset(g_streams, 0, sizeof(g_streams));
 
@@ -95,14 +178,34 @@ int init_streams(cJSON *json_root)
         stream->stream_stat = &g_generator_shared_mem->stats_streams[g_stream_cnt].stats_stream;
         init_stream_stats(stream->stream_stat);
 
-        str = cJSON_GetObjectItem(json_array_item, "type")->valuestring;
+        json = cJSON_GetObjectItem(json_array_item, "tls");
+        if(json){
+            stream->stream_is_tls = json->valueint;
+        }
+
+        json = cJSON_GetObjectItem(json_array_item, "type");
+        if(!json){
+            printf("stream type req.\n");
+            return -1;
+        }
+        str = json->valuestring;
         if(strstr(str, "httpclient")){
             stream->type = STREAM_TYPE_HTTPCLIENT;
+            if(stream->stream_is_tls){
+                if(init_streams_tls_client(stream, json_array_item) < 0){
+                    return -1;
+                }
+            }
             if(init_stream_http_client(json_array_item, stream) < 0){
                 return -1;
             }
         }else if(strstr(str, "httpserver")){
             stream->type = STREAM_TYPE_HTTPSERVER;
+            if(stream->stream_is_tls){
+                if(init_streams_tls_server(stream, json_array_item) < 0){
+                    return -1;
+                }
+            }
             if(init_stream_http_server(json_array_item, stream) < 0){
                 return -1;
             }
