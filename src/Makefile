@@ -15,7 +15,7 @@ endif
 
 SRC=xf-generator.c xf-session.c xf-stream.c xf-tools.c xf-network.c xf-address.c \
     xf-protocol-http-msg.c xf-protocol-http.c xf-protocol-common.c xf-capture.c \
-    xf-simuser.c
+    xf-simuser.c xf-certificate.c
 
 all: xf-generator-main xf-generator-control xf-generator-daemon
 

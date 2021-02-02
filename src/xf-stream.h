@@ -2,10 +2,14 @@
 #define XG_GENERATOR_STREAM_H
 #include <stdint.h>
 #include "cjson/cJSON.h"
+
 #include "dkfw_cps.h"
 #include "dkfw_stats.h"
+
 #include "lwip/opt.h"
 #include "lwip/netif.h"
+#include "lwip/altcp_tls.h"
+
 #include "xf-session.h"
 #include "xf-simuser.h"
 
@@ -60,8 +64,12 @@ typedef struct _STREAM_t {
 
     int stream_is_simuser;
     int stream_is_ipv6;
-    int is_tls;
     int close_with_rst;
+
+    int stream_is_tls;
+    struct altcp_tls_config *tls_client_config;
+    struct altcp_tls_config *tls_server_config;
+    int tls_ciphersuites[256];
 
     char listen_ip[64];
     struct netif *listen_net_if;

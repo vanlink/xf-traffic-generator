@@ -177,7 +177,7 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
         goto exit;
     }
 
-    if(stream->is_tls){
+    if(stream->stream_is_tls){
         newpcb = altcp_tls_alloc(NULL, IPADDR_TYPE_V4);
     }else{
         newpcb = altcp_new(NULL);
@@ -192,7 +192,7 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
     session->stream = stream;
     session->simuser_ind = simuser_ind;
 
-    if(stream->is_tls){
+    if(stream->stream_is_tls){
         pcb = newpcb->inner_conn ? ((struct altcp_pcb *)newpcb->inner_conn)->state : NULL;
     }else{
         pcb = (struct tcp_pcb *)newpcb->state;
@@ -302,7 +302,7 @@ int protocol_common_listen(STREAM *stream)
     struct netif *net_if = stream->listen_net_if;
     err_t ret;
 
-    if(stream->is_tls){
+    if(stream->stream_is_tls){
         listenpcb = altcp_tls_alloc(NULL, IPADDR_TYPE_V4);
     }else{
         listenpcb = altcp_new(NULL);
@@ -311,7 +311,7 @@ int protocol_common_listen(STREAM *stream)
         return -1;
     }
 
-    if(stream->is_tls){
+    if(stream->stream_is_tls){
         pcb = listenpcb->inner_conn ? ((struct altcp_pcb *)listenpcb->inner_conn)->state : NULL;
     }else{
         pcb = (struct tcp_pcb *)listenpcb->state;
