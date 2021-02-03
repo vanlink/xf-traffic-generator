@@ -178,7 +178,7 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
     }
 
     if(stream->stream_is_tls){
-        newpcb = altcp_tls_alloc(stream->tls_client_config, IPADDR_TYPE_V4);
+        newpcb = altcp_tls_alloc(stream->tls_client_config, stream->stream_is_ipv6 ? IPADDR_TYPE_V6 : IPADDR_TYPE_V4);
     }else{
         newpcb = altcp_new(NULL);
     }
@@ -303,7 +303,7 @@ int protocol_common_listen(STREAM *stream)
     err_t ret;
 
     if(stream->stream_is_tls){
-        listenpcb = altcp_tls_alloc(stream->tls_server_config, IPADDR_TYPE_V4);
+        listenpcb = altcp_tls_alloc(stream->tls_server_config, stream->stream_is_ipv6 ? IPADDR_TYPE_V6 : IPADDR_TYPE_V4);
     }else{
         listenpcb = altcp_new(NULL);
     }
