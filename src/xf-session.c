@@ -38,17 +38,24 @@
 #include "xf-session.h"
 #include "xf-generator.h"
 
-static struct rte_mempool *sessions = NULL;
+static struct rte_mempool *sessions[MAX_CORES_PER_ROLE] = {NULL};
 
 int init_sessions(uint64_t cnt)
 {
-    sessions = rte_mempool_create("sessions", cnt, sizeof(SESSION),
+    int i;
+    uint64_t cnt_core = cnt / g_pkt_process_core_num;
+    char buff[64];
+
+    for(i=0;i<g_pkt_process_core_num;i++){
+        sprintf(buff, "sessioncore%d", i);
+        sessions[i] = rte_mempool_create(buff, cnt_core, sizeof(SESSION),
                                                     512,
                                                     0, NULL, NULL, NULL, NULL,
-                                                    SOCKET_ID_ANY, MEMPOOL_F_NO_IOVA_CONTIG);
-    if(!sessions){
-        printf("sessions err.\n");
-        return -1;
+                                                    SOCKET_ID_ANY, MEMPOOL_F_SP_PUT | MEMPOOL_F_SC_GET);
+        if(!sessions[i]){
+            printf("sessions err.\n");
+            return -1;
+        }
     }
 
     printf("init_sessions %lu * %lu = %luMB\n", sizeof(SESSION), cnt, sizeof(SESSION) * cnt / 1000 / 1000);
@@ -60,7 +67,7 @@ SESSION *session_get(void)
 {
     SESSION *sess = NULL;
 
-    if(rte_mempool_get(sessions, (void **)&sess) < 0) {
+    if(rte_mempool_get(sessions[LWIP_MY_CPUID], (void **)&sess) < 0) {
         GENERATOR_STATS_RESPOOL_ALLOC_FAIL(GENERATOR_STATS_SESSION);
         return NULL;
     }
@@ -75,6 +82,6 @@ SESSION *session_get(void)
 void session_free(SESSION *sess)
 {
     GENERATOR_STATS_RESPOOL_FREE(GENERATOR_STATS_SESSION);
-    rte_mempool_put(sessions, sess);
+    rte_mempool_put(sessions[LWIP_MY_CPUID], sess);
 }
 
