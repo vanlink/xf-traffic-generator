@@ -533,6 +533,13 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     }
     stream->stream_is_ipv6 = a;
 
+    stream->local_address_in_pool_cnt = local_address_num_in_pool_cnt(stream->local_address_ind);
+    if(!stream->local_address_in_pool_cnt){
+        printf("no addresses in local pool.\n");
+        return -1;
+    }
+    printf("local address pool [%d] addresses [%d].\n", stream->local_address_ind, stream->local_address_in_pool_cnt);
+
     json = cJSON_GetObjectItem(json_root, "rpc");
     if(json){
         stream->rpc = json->valueint;

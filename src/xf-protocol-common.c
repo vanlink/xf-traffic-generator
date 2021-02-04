@@ -211,11 +211,11 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
     remote_addr = remote_address_get(stream->remote_address_ind, core, &port);
 
     force_next = 0;
-    for(i=0;i<8;i++){
+    for(i=0;i<stream->local_address_in_pool_cnt;i++){
         net_if = local_address_get(stream->local_address_ind, core, force_next);
         tcp_bind_netif(pcb, net_if);
         err = altcp_connect(newpcb, remote_addr, port, cb_connected);
-        if (err == ERR_OK) {
+        if (likely(err == ERR_OK)) {
             return ret;
         }
         if (err != ERR_USE) {

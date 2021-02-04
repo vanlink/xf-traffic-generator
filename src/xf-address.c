@@ -321,6 +321,11 @@ struct netif *local_address_get(int ind, int core, int force_next)
     return ret;
 }
 
+int local_address_num_in_pool_cnt(int ind)
+{
+    return local_address_ptr[ind]->addresses[0].address_cnt;
+}
+
 int local_address_pool_is_ipv6(int ind)
 {
     return local_address_ptr[ind]->is_ipv6;

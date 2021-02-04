@@ -59,6 +59,8 @@ typedef struct _STREAM_t {
     int type;
 
     int local_address_ind;
+    int local_address_in_pool_cnt;
+
     int remote_address_ind;
     int http_message_ind;
 
