@@ -250,7 +250,7 @@ static int init_networks_ipv4(cJSON *json_array_item,int interface_ind)
                             (ip >> 16) & 0xff,
                             (ip >> 8) & 0xff,
                             (ip >> 0) & 0xff);
-        net_if = rte_zmalloc(NULL, sizeof(struct netif), RTE_CACHE_LINE_SIZE);
+        net_if = rte_zmalloc(NULL, sizeof(struct netif), 0);
         if(!net_if){
             printf("init net if mem error.\n");
             return -1;
@@ -322,7 +322,7 @@ static int init_networks_ipv6(cJSON *json_array_item,int interface_ind)
         memcpy(&tmpipv6, &start, sizeof(tmpipv6));
         tmpipv6.s6_addr32[3] = lastpart;
 
-        net_if = rte_zmalloc(NULL, sizeof(struct netif), RTE_CACHE_LINE_SIZE);
+        net_if = rte_zmalloc(NULL, sizeof(struct netif), 0);
         if(!net_if){
             printf("init net if mem error.\n");
             return -1;

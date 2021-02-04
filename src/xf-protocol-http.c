@@ -6,7 +6,11 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include <rte_common.h>
+#include <rte_launch.h>
+#include <rte_memory.h>
+#include <rte_eal.h>
+#include <rte_lcore.h>
+#include <rte_ethdev.h>
 #include <rte_malloc.h>
 
 #include "cjson/cJSON.h"
@@ -376,7 +380,7 @@ static void init_stream_cps_one_core(STREAM *stream, int is_simuser, int core_in
 
     if(is_simuser && value){
         core->simuser_all_cnt = value;
-        core->simusers = rte_zmalloc(NULL, sizeof(SIMUSER) * value, RTE_CACHE_LINE_SIZE);
+        core->simusers = rte_zmalloc(NULL, sizeof(SIMUSER) * value, 0);
         for(j=0;j<(int)value;j++){
             core->simusers[j].simusr_ind = j;
             core->simusers[j].simusr_state = SIMUSR_ST_DISABLED;
@@ -480,7 +484,7 @@ static int init_stream_cps_array(cJSON *json_root, STREAM *stream, int is_simuse
         }
         core = &stream->stream_cores[i];
         core->simuser_all_cnt = value;
-        core->simusers = rte_zmalloc(NULL, sizeof(SIMUSER) * value, RTE_CACHE_LINE_SIZE);
+        core->simusers = rte_zmalloc(NULL, sizeof(SIMUSER) * value, 0);
         for(j=0;j<(int)value;j++){
             core->simusers[j].simusr_ind = j;
             core->simusers[j].simusr_state = SIMUSR_ST_DISABLED;

@@ -164,7 +164,7 @@ int init_streams(cJSON *json_root)
 
     json_stream = cJSON_GetObjectItem(json_root, "streams");
     cJSON_ArrayForEach(json_array_item, json_stream){
-        stream = rte_zmalloc(NULL, sizeof(STREAM), RTE_CACHE_LINE_SIZE);
+        stream = rte_zmalloc(NULL, sizeof(STREAM), 0);
         if(!stream){
             printf("init stream mem error.\n");
             return -1;

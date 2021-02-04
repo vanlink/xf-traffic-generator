@@ -39,7 +39,7 @@ int init_protocol_http_msg(cJSON *json_root)
     PROTOCOL_HTTP_MSG_ONE *msg_one;
 
     cJSON_ArrayForEach(json_array_item, json_messages){
-        msg = rte_zmalloc(NULL, sizeof(PROTOCOL_HTTP_MSG), RTE_CACHE_LINE_SIZE);
+        msg = rte_zmalloc(NULL, sizeof(PROTOCOL_HTTP_MSG), 0);
         if(!msg){
             printf("init http_msg mem error.\n");
             return -1;

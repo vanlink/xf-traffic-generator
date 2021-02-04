@@ -55,7 +55,7 @@ char *read_file_to_buff(char *filename, int *sizeout)
         return NULL;
     }
 
-    buff = rte_zmalloc(NULL, size + 4, RTE_CACHE_LINE_SIZE);
+    buff = rte_zmalloc(NULL, size + 4, 0);
     if(!buff){
         return NULL;
     }

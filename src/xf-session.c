@@ -51,7 +51,7 @@ int init_sessions(uint64_t cnt)
         sessions[i] = rte_mempool_create(buff, cnt_core, sizeof(SESSION),
                                                     512,
                                                     0, NULL, NULL, NULL, NULL,
-                                                    SOCKET_ID_ANY, MEMPOOL_F_SP_PUT | MEMPOOL_F_SC_GET);
+                                                    SOCKET_ID_ANY, MEMPOOL_F_SP_PUT | MEMPOOL_F_SC_GET | MEMPOOL_F_NO_IOVA_CONTIG);
         if(!sessions[i]){
             printf("sessions err.\n");
             return -1;

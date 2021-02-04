@@ -229,7 +229,7 @@ int init_addresses(cJSON *json_root)
     memset(local_address_ptr, 0, sizeof(local_address_ptr));
     json_addresses = cJSON_GetObjectItem(json_root, "local_addresses");
     cJSON_ArrayForEach(json_array_item, json_addresses){
-        local_address = rte_zmalloc(NULL, sizeof(ADDRESS_LOCAL), RTE_CACHE_LINE_SIZE);
+        local_address = rte_zmalloc(NULL, sizeof(ADDRESS_LOCAL), 0);
         if(!local_address){
             printf("init local_address mem error.\n");
             return -1;
@@ -273,7 +273,7 @@ int init_addresses(cJSON *json_root)
     memset(remote_address_ptr, 0, sizeof(remote_address_ptr));
     json_addresses = cJSON_GetObjectItem(json_root, "remote_addresses");
     cJSON_ArrayForEach(json_array_item, json_addresses){
-        remote_address = rte_zmalloc(NULL, sizeof(ADDRESS_REMOTE), RTE_CACHE_LINE_SIZE);
+        remote_address = rte_zmalloc(NULL, sizeof(ADDRESS_REMOTE), 0);
         if(!remote_address){
             printf("init remote_address mem error.\n");
             return -1;

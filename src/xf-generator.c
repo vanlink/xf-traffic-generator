@@ -68,6 +68,7 @@ enum {
 
 typedef struct _DPDK_MBUF_PRIV_TAG {
     struct netif *pnetif;
+    uint32_t mbuf_hash;
 } MBUF_PRIV_T;
 
 #define MAX_RCV_PKTS 32
@@ -219,6 +220,7 @@ static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq)
         goto exit;
     }
     p->payload = dpdkdat;
+    p->pbuf_hash = priv->mbuf_hash;
 
     ret = priv->pnetif->input(p, priv->pnetif);
     if(ret != ERR_OK){
@@ -248,6 +250,8 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
     struct rte_arp_hdr *arp = NULL;
     struct rte_flow_item_icmp6_nd_ns *icmpv6 = NULL;
     MBUF_PRIV_T *priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
+    uint32_t hash_use_ip;
+    uint32_t hash_use_port;
 
     dpdkdat = rte_pktmbuf_mtod(m, char *);
 
@@ -322,17 +326,41 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
         port_humam = rte_bswap16(tcp->dst_port);
         if(LWIP_NETIF_LPORT_TCP_IS_LISTEN(priv->pnetif, port_humam)){
             // dst to listen port, hash base on src port
-            *dst_core = rte_bswap16(tcp->src_port) % g_pkt_process_core_num;
+            port_humam = rte_bswap16(tcp->src_port);
+            *dst_core = port_humam % g_pkt_process_core_num;
+            if(ipv4){
+                /*
+                (gdb) p /x ipv4->dst_addr
+                $4 = 0x101a8c0
+                (gdb) p /x ipv4->src_addr
+                $5 = 0xfe01a8c0
+                */
+                hash_use_ip = rte_bswap32(ipv4->src_addr);
+                hash_use_port = port_humam;
+            }else{
+                hash_use_ip = 0;
+                hash_use_port = 0;
+            }
         }else{
             // dst to client port, hash base on dst port
             *dst_core = port_humam % g_pkt_process_core_num;
+            if(ipv4){
+                hash_use_ip = rte_bswap32(ipv4->dst_addr);
+                hash_use_port = port_humam;
+            }else{
+                hash_use_ip = 0;
+                hash_use_port = 0;
+            }
         }
+        priv->mbuf_hash = lwip_get_hash_addrport(hash_use_ip, hash_use_port, priv->pnetif->pcb_hash_bucket_cnt);
     }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_UDP){
         udp = (struct rte_udp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
         (void)udp;
+        return -1;
     }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_ICMP){
         icmp = (struct rte_icmp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
         (void)icmp;
+        return -1;
     }else{
         return -1;
     }
@@ -862,7 +890,7 @@ int main(int argc, char **argv)
 
     init_protocol_http();
 
-    g_generator_timer_bases = rte_zmalloc(NULL, sizeof(tvec_base_t) * g_pkt_process_core_num, RTE_CACHE_LINE_SIZE);
+    g_generator_timer_bases = rte_zmalloc(NULL, sizeof(tvec_base_t) * g_pkt_process_core_num, 0);
     for(i=0;i<g_pkt_process_core_num;i++){
         dkfw_init_timers(&g_generator_timer_bases[i], *g_elapsed_ms);
     }
