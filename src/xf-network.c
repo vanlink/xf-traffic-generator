@@ -170,6 +170,7 @@ static int init_networks_ipv4(cJSON *json_array_item,int interface_ind)
     struct netif *netif_vrouter = NULL;
     cJSON *json;
     int hash_cnt = 8192;
+    char start_str[128], end_str[128];
 
     json = cJSON_GetObjectItem(json_array_item, "start");
     if(!json){
@@ -180,16 +181,17 @@ static int init_networks_ipv4(cJSON *json_array_item,int interface_ind)
         printf("invalid network ip.\n");
         return -1;
     }
+    strcpy(start_str, json->valuestring);
 
     json = cJSON_GetObjectItem(json_array_item, "end");
-    if(json){
-        if(str_to_ipv4(json->valuestring, &end) < 0){
-            printf("invalid network ip.\n");
-            return -1;
-        }
-    }else{
-        end = start;
+    if(!json){
+        json = cJSON_GetObjectItem(json_array_item, "start");
     }
+    if(str_to_ipv4(json->valuestring, &end) < 0){
+        printf("invalid network ip.\n");
+        return -1;
+    }
+    strcpy(end_str, json->valuestring);
 
     json = cJSON_GetObjectItem(json_array_item, "mask");
     if(json){
@@ -222,6 +224,9 @@ static int init_networks_ipv4(cJSON *json_array_item,int interface_ind)
     if(json){
         hash_cnt = json->valueint;
     }
+
+    printf("add networks [%s] -> [%s], hash per interface=[%d], per core=[%d]\n", start_str, end_str, hash_cnt, hash_cnt / g_pkt_process_core_num);
+    hash_cnt = hash_cnt / g_pkt_process_core_num;
 
     IP4_ADDR(&local_netmask, (mask >> 24) & 0xff,
                             (mask >> 16) & 0xff,
@@ -281,6 +286,8 @@ static int init_networks_ipv6(cJSON *json_array_item,int interface_ind)
     int num, i;
     uint32_t lastpart;
     ip6_addr_t local_ipv6addr;
+    int hash_cnt = 8192;
+    char start_str[128], end_str[128];
 
     json2 = cJSON_GetObjectItem(json_array_item, "start");
     if(json2){
@@ -292,16 +299,17 @@ static int init_networks_ipv6(cJSON *json_array_item,int interface_ind)
         printf("no ip start.\n");
         return -1;
     }
+    strcpy(start_str, json2->valuestring);
 
     json2 = cJSON_GetObjectItem(json_array_item, "end");
-    if(json2){
-        if(str_to_ipv6(json2->valuestring, &end) < 0){
-            printf("invalid ipv6.\n");
-            return -1;
-        }
-    }else{
-        memcpy(&end, &start, sizeof(end));
+    if(!json2){
+        json2 = cJSON_GetObjectItem(json_array_item, "start");
     }
+    if(str_to_ipv6(json2->valuestring, &end) < 0){
+        printf("invalid ipv6.\n");
+        return -1;
+    }
+    strcpy(end_str, json2->valuestring);
 
     json2 = cJSON_GetObjectItem(json_array_item, "gw");
     if(json2){
@@ -316,6 +324,14 @@ static int init_networks_ipv6(cJSON *json_array_item,int interface_ind)
     json2 = cJSON_GetObjectItem(json_array_item, "masklen");
     masklen = json2 ? json2->valueint : 64;
 
+    json2 = cJSON_GetObjectItem(json_array_item, "hashsize");
+    if(json2){
+        hash_cnt = json2->valueint;
+    }
+
+    printf("add networks [%s] -> [%s], hash per interface=[%d], per core=[%d]\n", start_str, end_str, hash_cnt, hash_cnt / g_pkt_process_core_num);
+    hash_cnt = hash_cnt / g_pkt_process_core_num;
+
     num = rte_bswap32(end.s6_addr32[3]) - rte_bswap32(start.s6_addr32[3]) + 1;
     for(i=0;i<num;i++){
         lastpart = rte_bswap32(rte_bswap32(start.s6_addr32[3]) + i);
@@ -328,7 +344,7 @@ static int init_networks_ipv6(cJSON *json_array_item,int interface_ind)
             return -1;
         }
 
-        if(!netif_add(net_if, NULL, NULL, NULL, NULL, netif_init_local, netif_input, 0)){
+        if(!netif_add(net_if, NULL, NULL, NULL, NULL, netif_init_local, netif_input, hash_cnt)){
             printf("netif_add ipv6 err.\n");
             return -1;
         }

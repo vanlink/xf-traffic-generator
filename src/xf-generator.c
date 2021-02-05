@@ -881,8 +881,6 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    altcp_tls_ssl_list_ciphersuites();
-
     if(init_capture(json_root) < 0){
         ret = -1;
         goto err;

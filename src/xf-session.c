@@ -46,6 +46,8 @@ int init_sessions(uint64_t cnt)
     uint64_t cnt_core = cnt / g_pkt_process_core_num;
     char buff[64];
 
+    printf("Creating session pool %lu * %lu = [%lu] MB ... ", sizeof(SESSION), cnt, sizeof(SESSION) * cnt / 1000 / 1000);
+
     for(i=0;i<g_pkt_process_core_num;i++){
         sprintf(buff, "sessioncore%d", i);
         sessions[i] = rte_mempool_create(buff, cnt_core, sizeof(SESSION),
@@ -53,12 +55,12 @@ int init_sessions(uint64_t cnt)
                                                     0, NULL, NULL, NULL, NULL,
                                                     SOCKET_ID_ANY, MEMPOOL_F_SP_PUT | MEMPOOL_F_SC_GET | MEMPOOL_F_NO_IOVA_CONTIG);
         if(!sessions[i]){
-            printf("sessions err.\n");
+            printf("error.\n");
             return -1;
         }
     }
 
-    printf("init_sessions %lu * %lu = %luMB\n", sizeof(SESSION), cnt, sizeof(SESSION) * cnt / 1000 / 1000);
+    printf("OK.\n");
 
     return 0;
 }
