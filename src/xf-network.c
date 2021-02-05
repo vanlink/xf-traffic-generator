@@ -39,7 +39,6 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
 {
     struct rte_mbuf *m;
     struct pbuf *lwip_pbuf;
-    int ret;
     char *data;
     struct rte_ether_hdr *ethhdr;
     struct rte_ipv4_hdr *iph;
@@ -112,10 +111,16 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     txq = p->cpu_id;
 
 #if USE_TX_BUFFER
-    rte_eth_tx_buffer(port, txq, tx_buffer[port][txq], m);
+    if(unlikely(p->pbuf_send_fast)){
+        if (unlikely(rte_eth_tx_burst(port, txq, &m, 1) < 1)) {
+            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_SEND_FAIL);
+            rte_pktmbuf_free(m);
+        }
+    }else{
+        rte_eth_tx_buffer(port, txq, tx_buffer[port][txq], m);
+    }
 #else
-    ret = rte_eth_tx_burst(port, txq, &m, 1);
-    if (unlikely(ret < 1)) {
+    if (unlikely(rte_eth_tx_burst(port, txq, &m, 1) < 1)) {
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_SEND_FAIL);
         rte_pktmbuf_free(m);
     }

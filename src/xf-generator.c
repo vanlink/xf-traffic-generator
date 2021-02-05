@@ -480,6 +480,9 @@ static void packet_second_timer(int seq, uint64_t seconds)
     }
 }
 
+#define US_PER_S 1000000
+#define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
+
 static int packet_loop(int seq)
 {
     int i, send_cnt, cind;
@@ -496,6 +499,10 @@ static int packet_loop(int seq)
     struct rte_mbuf *clone;
     MBUF_PRIV_T *priv_src;
     MBUF_PRIV_T *priv_dst;
+#if USE_TX_BUFFER
+    uint64_t drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US;
+    uint64_t diff_tsc, prev_tsc = 0;
+#endif
 
     printf("packet loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
 
@@ -531,15 +538,20 @@ static int packet_loop(int seq)
             *g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
         }
 
+#if USE_TX_BUFFER
+        diff_tsc = time_0 - prev_tsc;
+        if (unlikely(diff_tsc > drain_tsc)) {
+            busy = 1;
+            interface_tx_buffer_flush(seq);
+            prev_tsc = time_0;
+        }
+#endif
+
         if(*g_elapsed_ms != elapsed_ms_last){
 
             busy = 1;
 
             elapsed_ms_last = *g_elapsed_ms;
-
-#if USE_TX_BUFFER
-            interface_tx_buffer_flush(seq);
-#endif
 
             sys_check_timeouts(*g_elapsed_ms);
 
