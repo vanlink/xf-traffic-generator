@@ -732,7 +732,7 @@ static void at_exit_do(void)
 
 int main(int argc, char **argv)
 {
-    int i;
+    int i, core_pkt_cnt, core_disp_cnt = 0;
     int ret = 0;
     FILE *fp = NULL;
     char *json_str = calloc(1, 1024 * 1024);
@@ -783,22 +783,22 @@ int main(int argc, char **argv)
         ret = -1;
         goto err;
     }
-    i = 0;
+    core_pkt_cnt = 0;
     json_array_item = NULL;
     cJSON_ArrayForEach(json_array_item, json_item){
-        dkfw_config.cores_pkt_process[i].core_enabled = 1;
-        dkfw_config.cores_pkt_process[i].core_ind = json_array_item->valueint;
-        i++;
+        dkfw_config.cores_pkt_process[core_pkt_cnt].core_enabled = 1;
+        dkfw_config.cores_pkt_process[core_pkt_cnt].core_ind = json_array_item->valueint;
+        core_pkt_cnt++;
     }
 
     json_item = cJSON_GetObjectItem(json_root, "cores-dispatch");
     if(json_item && json_item->type == cJSON_Array){
-        i = 0;
+        core_disp_cnt = 0;
         json_array_item = NULL;
         cJSON_ArrayForEach(json_array_item, json_item){
-            dkfw_config.cores_pkt_dispatch[i].core_enabled = 1;
-            dkfw_config.cores_pkt_dispatch[i].core_ind = json_array_item->valueint;
-            i++;
+            dkfw_config.cores_pkt_dispatch[core_disp_cnt].core_enabled = 1;
+            dkfw_config.cores_pkt_dispatch[core_disp_cnt].core_ind = json_array_item->valueint;
+            core_disp_cnt++;
         }
     }
 
@@ -814,6 +814,8 @@ int main(int argc, char **argv)
         strcpy(dkfw_config.pcis_config[i].pci_name, json_array_item->valuestring);
         i++;
     }
+
+    dkfw_config.nic_rx_pktbuf_cnt = (core_pkt_cnt + core_disp_cnt) > 8 ? 300000 : 150000;
 
     if(dkfw_init(&dkfw_config) < 0){
         ret = -1;

@@ -7,9 +7,9 @@
     ],
 
     "mem_static_pools": {
-        "pcb-altcp": 2000000,
+        "pcb-altcp": 3000000,
         "pcb-tcp-listen": 2048,
-        "pcb-tcp": 2000000,
+        "pcb-tcp": 3000000,
         "tcp-seg": 500000,
         "arp-q": 2048,
         "nd6-q": 2048,
@@ -27,7 +27,7 @@
         {"size":65536, "cnt":2048}
     ],
 
-    "sessions": 2000000,
+    "sessions": 3000000,
 
     "networks": [
         {
@@ -94,11 +94,11 @@
             "cps":[
                 {
                     "start": 0,
-                    "end": 300000,
-                    "time": 30
+                    "end": 600000,
+                    "time": 60
                 },
                 {
-                    "start": 300000,
+                    "start": 600000,
                     "time": 0
                 }
             ],
