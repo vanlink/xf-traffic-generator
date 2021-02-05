@@ -375,6 +375,7 @@ int init_networks(cJSON *json_root)
     uint32_t start;
     struct in6_addr start6;
     int i, j;
+    int allcores = g_pkt_process_core_num + g_pkt_distribute_core_num;
 
     for(i=0;i<g_dkfw_interfaces_num;i++){
         for(j=0;j<g_pkt_process_core_num;j++){
@@ -387,7 +388,7 @@ int init_networks(cJSON *json_root)
         }
     }
 
-    pktmbuf_lwip2dpdk = rte_pktmbuf_pool_create("mbuflwip2dpdk", 65534, 512, 0, RTE_MBUF_DEFAULT_BUF_SIZE, SOCKET_ID_ANY);
+    pktmbuf_lwip2dpdk = rte_pktmbuf_pool_create("mbuflwip2dpdk", (allcores > 8) ? 131071 : 65535, 512, 0, RTE_MBUF_DEFAULT_BUF_SIZE, SOCKET_ID_ANY);
     if(!pktmbuf_lwip2dpdk){
         printf("mbuf pktmbuf_lwip2dpdk err.\n");
         return -1;

@@ -1,15 +1,16 @@
 {
-    "cores-process": [15],
-    
+    "cores-process": [15,16,17,18,35,36,37,38],
+    "cores-dispatch": [],
+
     "interfaces": [
-        "0000:82:00.1"
+        "0000:03:00.1"
     ],
 
     "mem_static_pools": {
-        "pcb-altcp": 200000,
+        "pcb-altcp": 11000000,
         "pcb-tcp-listen": 2048,
-        "pcb-tcp": 500000,
-        "tcp-seg": 200000,
+        "pcb-tcp": 11000000,
+        "tcp-seg": 500000,
         "arp-q": 2048,
         "nd6-q": 2048,
         "pbuf-pool": 65536,
@@ -26,15 +27,24 @@
         {"size":65536, "cnt":2048}
     ],
     
-    "sessions": 500000,
+    "sessions": 11000000,
     
     "networks": [
         {
             "interface_ind": 0,
-            "start": "2001::254",
-            "end": "2001::254",
-            "masklen": 96,
-            "gw": "2001::1"
+            "start": "99.99.99.254",
+            "end": "99.99.99.254",
+            "mask": "255.255.255.0",
+            "gw": "99.99.99.1",
+            "hashsize": 1024
+        },
+        {
+            "interface_ind": 0,
+            "start": "192.168.1.254",
+            "end": "192.168.1.254",
+            "mask": "255.255.255.0",
+            "gw": "192.168.1.1",
+            "hashsize": 1000000
         }
     ],
 
@@ -48,8 +58,8 @@
     
     "certificates":[
         {
-            "certificate": "/etc/nginx/crt.txt",
-            "key": "/etc/nginx/key.txt"
+            "certificate":"/etc/nginx/crt.txt",
+            "key":"/etc/nginx/key.txt"
         }
     ],
     
@@ -57,10 +67,10 @@
         {
             "type":"httpserver",
             "http_message_ind":0,
-            "listen_ip":"2001::254",
-            "listen_port":443,
+            "listen_ip":"192.168.1.254",
+            "listen_port":80,
             
-            "tls":1,
+            "tls":0,
             "certificate_ind":0,
             "ciphersuites": [
                 "TLS-RSA-WITH-AES-256-CBC-SHA256"
@@ -69,6 +79,6 @@
     ],
     
     "capture":{
-        "enabled":1
+        "enabled":0
     }
 }
