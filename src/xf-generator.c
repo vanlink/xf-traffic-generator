@@ -98,6 +98,8 @@ SHARED_MEM_T *g_generator_shared_mem = NULL;
 
 tvec_base_t *g_generator_timer_bases;
 
+static int cmd_exit = 0;
+
 static int cmd_parse_args(int argc, char **argv)
 {
     int opt;
@@ -368,9 +370,15 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
     return 0;
 }
 
+static void dispatch_second_timer(int seq, uint64_t seconds)
+{
+    (void)seq;
+    (void)seconds;
+}
+
 static int dispatch_loop(int seq)
 {
-    uint64_t time_0;
+    uint64_t time_0, elapsed_second_last = 0;
     int i, cind;
     struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
     struct rte_mbuf *pkt, *clone;
@@ -390,6 +398,22 @@ static int dispatch_loop(int seq)
         busy = 0;
 
         DKFW_PROFILE_START(profiler, time_0);
+
+        DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_TIMER);
+        if(*g_elapsed_ms - elapsed_second_last >= 1000){
+
+            busy = 1;
+
+            dispatch_second_timer(seq, *g_elapsed_ms / 1000);
+
+            elapsed_second_last = *g_elapsed_ms;
+        }
+        time_0 = rte_rdtsc();
+        if(busy){
+            DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_TIMER);
+        }
+
+        busy = 0;
 
         DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_RECV_INTF);
 
@@ -438,15 +462,29 @@ static int dispatch_loop(int seq)
         }
         
         DKFW_PROFILE_END(profiler, time_0);
+
+        if(unlikely(cmd_exit)){
+            break;
+        }
     }
 
     return 0;
+}
+
+static void packet_second_timer(int seq, uint64_t seconds)
+{
+    (void)seconds;
+
+    if(seq == 0){
+        cmd_exit = g_generator_shared_mem->cmd_exit;
+    }
 }
 
 static int packet_loop(int seq)
 {
     int i, send_cnt, cind;
     uint64_t elapsed_ms_last = 0;
+    uint64_t elapsed_second_last = 0;
     uint64_t time_0;
     struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
     struct rte_mbuf *pkt;
@@ -506,6 +544,13 @@ static int packet_loop(int seq)
             sys_check_timeouts(*g_elapsed_ms);
 
             dkfw_run_timer(&g_generator_timer_bases[seq], *g_elapsed_ms);
+
+            if(*g_elapsed_ms - elapsed_second_last >= 1000){
+
+                packet_second_timer(seq, *g_elapsed_ms / 1000);
+                
+                elapsed_second_last = *g_elapsed_ms;
+            }
 
         }
 
@@ -635,6 +680,10 @@ static int packet_loop(int seq)
         }
 
         DKFW_PROFILE_END(profiler, time_0);
+
+        if(unlikely(cmd_exit)){
+            break;
+        }
     }
 
     return 0;
@@ -721,13 +770,6 @@ static int init_generator_profile(SHARED_MEM_T *sm)
     }
 
     return 0;
-}
-
-static void at_exit_do(void)
-{
-    printf("===== xf-generator exit =====\n");
-    capture_close_all();
-    fflush(stdout);
 }
 
 int main(int argc, char **argv)
@@ -895,12 +937,6 @@ int main(int argc, char **argv)
         dkfw_init_timers(&g_generator_timer_bases[i], *g_elapsed_ms);
     }
 
-    if (atexit(at_exit_do)) {
-        printf("register exit error.\n");
-        ret = -1;
-        goto err;
-    }
-
     printf("config done.\n");
 
     rte_eal_mp_remote_launch(main_loop, NULL, CALL_MASTER);
@@ -922,6 +958,11 @@ err:
         cJSON_Delete(json_root);
     }
     dkfw_exit();
+
+    capture_close_all();
+
+    printf("===== xf-generator exit =====\n");
+    fflush(stdout);
 
     return ret;
 }

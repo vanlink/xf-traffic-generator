@@ -32,6 +32,9 @@ typedef struct _SHARED_MEM_TAG {
     DKFW_PROFILE profile_pkt[MAX_CORES_PER_ROLE];
     DKFW_PROFILE profile_dispatch[MAX_CORES_PER_ROLE];
 
+    int cmd_exit;
+    int cmd_stop;
+
 } SHARED_MEM_T;
 
 extern SHARED_MEM_T *g_generator_shared_mem;
