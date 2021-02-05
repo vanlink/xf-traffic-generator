@@ -1,5 +1,5 @@
 {
-    "cores-process": [11,12,13,14,15,16,17,18,31,32,33,34,35,36,37,38],
+    "cores-process": [11],
     "cores-dispatch": [],
 
     "interfaces": [
@@ -27,7 +27,7 @@
         {"size":65536, "cnt":2048}
     ],
     
-    "sessions": 2000000,
+    "sessions": 10,
     
     "networks": [
         {

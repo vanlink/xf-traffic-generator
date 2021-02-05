@@ -32,11 +32,14 @@
 #include "dkfw_ipc.h"
 #include "dkfw_timer.h"
 #include "dkfw_memory.h"
+#include "dkfw_mempool.h"
 #include "dpdkframework.h"
 
 #include "xf-sharedmem.h"
 #include "xf-session.h"
 #include "xf-generator.h"
+
+#if 1
 
 static struct rte_mempool *sessions[MAX_CORES_PER_ROLE] = {NULL};
 
@@ -86,4 +89,55 @@ void session_free(SESSION *sess)
     GENERATOR_STATS_RESPOOL_FREE(GENERATOR_STATS_SESSION);
     rte_mempool_put(sessions[LWIP_MY_CPUID], sess);
 }
+
+#else
+
+static DKFW_MEMPOOL *sessions[MAX_CORES_PER_ROLE] = {NULL};
+
+int init_sessions(uint64_t cnt)
+{
+    int i;
+    uint64_t cnt_core = cnt / g_pkt_process_core_num;
+    char buff[64];
+
+    printf("Creating session pool %lu * %lu = [%lu] MB ... ", sizeof(SESSION), cnt, sizeof(SESSION) * cnt / 1000 / 1000);
+
+    for(i=0;i<g_pkt_process_core_num;i++){
+        sprintf(buff, "sessioncore%d", i);
+        sessions[i] = dkfw_mempool_create(sizeof(SESSION), cnt_core);
+        if(!sessions[i]){
+            printf("error.\n");
+            return -1;
+        }
+    }
+
+    printf("OK.\n");
+
+    return 0;
+}
+
+SESSION *session_get(void)
+{
+    SESSION *sess = (SESSION *)dkfw_mempool_alloc(sessions[LWIP_MY_CPUID]);
+
+    if(!sess) {
+        GENERATOR_STATS_RESPOOL_ALLOC_FAIL(GENERATOR_STATS_SESSION);
+        return NULL;
+    }
+
+    GENERATOR_STATS_RESPOOL_ALLOC_SUCC(GENERATOR_STATS_SESSION);
+
+    bzero(sess, sizeof(SESSION));
+
+    return sess;
+}
+
+void session_free(SESSION *sess)
+{
+    GENERATOR_STATS_RESPOOL_FREE(GENERATOR_STATS_SESSION);
+
+    dkfw_mempool_free((void *)sess);
+}
+
+#endif
 
