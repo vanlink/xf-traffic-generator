@@ -40,6 +40,7 @@ static char capture_buff[MAX_CORES_PER_ROLE][2048];
 static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
 {
     struct rte_mbuf *m = NULL;
+    struct rte_mbuf *mseq;
     struct pbuf *lwip_pbuf;
     char *data;
     struct rte_ether_hdr *ethhdr;
@@ -51,8 +52,6 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     int cnt;
 
 #if LWIP_TX_ZERO_COPY
-    struct rte_mbuf *mseq;
-
     for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
         if(lwip_pbuf->pbuf_dpdk_mbuf){
             mseq = lwip_pbuf->pbuf_dpdk_mbuf;
