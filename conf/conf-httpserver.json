@@ -27,7 +27,7 @@
         {"size":65536, "cnt":2048}
     ],
     
-    "sessions": 10,
+    "sessions": 2000000,
     
     "networks": [
         {
@@ -43,7 +43,7 @@
             "start": "192.168.1.254",
             "end": "192.168.1.254",
             "mask": "255.255.255.0",
-            "gw": "192.168.1.1",
+            "vrouter": "99.99.99.254",
             "hashsize": 1000000
         }
     ],
@@ -51,7 +51,7 @@
     "http_messages":[
         {
             "messages":[
-                { "path":"/rsp.txt"}
+                { "path":"/rsp-21k.txt"}
             ]
         }
     ],
@@ -79,6 +79,6 @@
     ],
     
     "capture":{
-        "enabled":0
+        "enabled":1
     }
 }

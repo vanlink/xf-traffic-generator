@@ -37,7 +37,7 @@ static struct rte_eth_dev_tx_buffer *tx_buffer[MAX_PCI_NUM][MAX_CORES_PER_ROLE];
 
 static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
 {
-    struct rte_mbuf *m;
+    struct rte_mbuf *m = NULL;
     struct pbuf *lwip_pbuf;
     char *data;
     struct rte_ether_hdr *ethhdr;
@@ -47,20 +47,28 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     struct rte_udp_hdr *udphdr;
     int port, txq;
 
-    m = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
-    if(!m) {
-        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_EMPTY);
-        return ERR_MEM;
-    }
-
-    for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
-        data = rte_pktmbuf_append(m, lwip_pbuf->len);
-        if(!data) {
-            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
-            rte_pktmbuf_free(m);
+#if LWIP_TX_ZERO_COPY
+    if(p->pbuf_dpdk_mbuf){
+        m = p->pbuf_dpdk_mbuf;
+        // rte_pktmbuf_dump(stdout, m, rte_pktmbuf_pkt_len(m));
+    }else
+#endif
+    {
+        m = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
+        if(!m) {
+            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_EMPTY);
             return ERR_MEM;
         }
-        rte_memcpy(data, lwip_pbuf->payload, lwip_pbuf->len);
+
+        for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
+            data = rte_pktmbuf_append(m, lwip_pbuf->len);
+            if(!data) {
+                GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
+                rte_pktmbuf_free(m);
+                return ERR_MEM;
+            }
+            rte_memcpy(data, lwip_pbuf->payload, lwip_pbuf->len);
+        }
     }
 
     data = rte_pktmbuf_mtod(m, char *);
