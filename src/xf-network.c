@@ -48,20 +48,36 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     int port, txq;
 
 #if LWIP_TX_ZERO_COPY
-    if(p->pbuf_dpdk_mbuf){
-        m = p->pbuf_dpdk_mbuf;
-        // rte_pktmbuf_dump(stdout, m, rte_pktmbuf_pkt_len(m));
-    }else
-#endif
-    {
-        m = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
-        if(!m) {
-            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_EMPTY);
-            return ERR_MEM;
-        }
+    struct rte_mbuf *mseq;
 
-        for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
-            data = rte_pktmbuf_append(m, lwip_pbuf->len);
+    for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
+        if(lwip_pbuf->pbuf_dpdk_mbuf){
+            mseq = lwip_pbuf->pbuf_dpdk_mbuf;
+            data = rte_pktmbuf_mtod(mseq, char *);
+            if((char *)lwip_pbuf->payload > data){
+                if(unlikely(!rte_pktmbuf_adj(mseq, (char *)lwip_pbuf->payload - data))){
+                    GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
+                    rte_pktmbuf_free(mseq);
+                    return ERR_MEM;
+                }
+            }else if((char *)lwip_pbuf->payload < data){
+                GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
+                rte_pktmbuf_free(mseq);
+                return ERR_MEM;
+            }
+            if(!m){
+                m = mseq;
+            }
+        }else{
+            mseq = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
+            if(!mseq) {
+                GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_EMPTY);
+                return ERR_MEM;
+            }
+            if(!m){
+                m = mseq;
+            }
+            data = rte_pktmbuf_append(mseq, lwip_pbuf->len);
             if(!data) {
                 GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
                 rte_pktmbuf_free(m);
@@ -69,16 +85,37 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
             }
             rte_memcpy(data, lwip_pbuf->payload, lwip_pbuf->len);
         }
+        if (mseq != m){
+            rte_pktmbuf_chain(m, mseq);
+        }
     }
+#else
+    m = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
+    if(!m) {
+        GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_EMPTY);
+        return ERR_MEM;
+    }
+    for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
+        data = rte_pktmbuf_append(m, lwip_pbuf->len);
+        if(!data) {
+            GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
+            rte_pktmbuf_free(m);
+            return ERR_MEM;
+        }
+        rte_memcpy(data, lwip_pbuf->payload, lwip_pbuf->len);
+    }
+#endif
+
+    // rte_pktmbuf_dump(stdout, m, rte_pktmbuf_pkt_len(m));
 
     data = rte_pktmbuf_mtod(m, char *);
 
     if(unlikely(g_is_capturing)){
-        capture_do_capture(p->cpu_id, data, rte_pktmbuf_pkt_len(m));
+        capture_do_capture(p->cpu_id, data, rte_pktmbuf_data_len(m));
     }
 
     ethhdr = (struct rte_ether_hdr *)data;
-    
+
     if(likely(ntohs(ethhdr->ether_type) == RTE_ETHER_TYPE_IPV4)){
         m->ol_flags |= (PKT_TX_IP_CKSUM | PKT_TX_IPV4);
         m->l2_len = sizeof(struct rte_ether_hdr);
