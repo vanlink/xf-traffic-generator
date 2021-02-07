@@ -35,6 +35,8 @@ static struct rte_mempool *pktmbuf_lwip2dpdk = NULL;
 
 static struct rte_eth_dev_tx_buffer *tx_buffer[MAX_PCI_NUM][MAX_CORES_PER_ROLE];
 
+static char capture_buff[MAX_CORES_PER_ROLE][2048];
+
 static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
 {
     struct rte_mbuf *m = NULL;
@@ -46,6 +48,7 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     struct rte_tcp_hdr *tcphdr;
     struct rte_udp_hdr *udphdr;
     int port, txq;
+    int cnt;
 
 #if LWIP_TX_ZERO_COPY
     struct rte_mbuf *mseq;
@@ -110,10 +113,6 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
 
     data = rte_pktmbuf_mtod(m, char *);
 
-    if(unlikely(g_is_capturing)){
-        capture_do_capture(p->cpu_id, data, rte_pktmbuf_data_len(m));
-    }
-
     ethhdr = (struct rte_ether_hdr *)data;
 
     if(likely(ntohs(ethhdr->ether_type) == RTE_ETHER_TYPE_IPV4)){
@@ -150,6 +149,18 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
             udphdr->dgram_cksum = rte_ipv6_phdr_cksum(ipv6h, m->ol_flags);
         }
     }else{
+    }
+
+    if(unlikely(g_is_capturing)){
+        cnt = 0;
+        mseq = m;
+        while (mseq) {
+            data = rte_pktmbuf_mtod(mseq, char *);
+            rte_memcpy(&capture_buff[p->cpu_id][cnt], data, rte_pktmbuf_data_len(mseq));
+            cnt += rte_pktmbuf_data_len(mseq);
+            mseq = mseq->next;
+        }
+        capture_do_capture(p->cpu_id, capture_buff[p->cpu_id], cnt);
     }
 
     port = lwip_netif_num_2_phy_port_ind[intf->num];
