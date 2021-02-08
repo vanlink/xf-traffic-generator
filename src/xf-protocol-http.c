@@ -44,7 +44,7 @@ static void http_session_msg_next(SESSION *session, STREAM *stream)
 {
     int msg_ind = session->msg_ind;
 
-    session->msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len);
+    session->msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len, NULL);
     session->msg_ind = msg_ind;
 }
 

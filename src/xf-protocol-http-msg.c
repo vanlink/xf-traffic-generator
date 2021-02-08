@@ -19,6 +19,7 @@
 typedef struct _PROTOCOL_HTTP_MSG_ONE_t {
     int len;
     char *msg;
+    rte_iova_t msg_iova;
 } PROTOCOL_HTTP_MSG_ONE;
 
 typedef struct _PROTOCOL_HTTP_MSG_t {
@@ -60,6 +61,11 @@ int init_protocol_http_msg(cJSON *json_root)
                 printf("failed to load http msg file [%s].\n", path);
                 return -1;
             }
+            msg_one->msg_iova = rte_malloc_virt2iova(msg_one->msg);
+            if(msg_one->msg_iova == RTE_BAD_IOVA){
+                printf("failed to load http msg iova file [%s].\n", path);
+                return -1;
+            }
             printf("loaded http msg file [%s] size=[%d]\n", path, msg_one->len);
             msg->message_cnt++;
 
@@ -73,7 +79,7 @@ int init_protocol_http_msg(cJSON *json_root)
     return 0;
 }
 
-char *protocol_http_msg_get(int pool_ind, int *msg_ind, int *msg_len)
+char *protocol_http_msg_get(int pool_ind, int *msg_ind, int *msg_len, rte_iova_t *msg_iova)
 {
     int i = *msg_ind;
     PROTOCOL_HTTP_MSG *pool = http_message_pools[pool_ind];
@@ -83,6 +89,10 @@ char *protocol_http_msg_get(int pool_ind, int *msg_ind, int *msg_len)
     *msg_ind = i;
 
     *msg_len = one->len;
+
+    if(msg_iova){
+        *msg_iova = one->msg_iova;
+    }
 
     return one->msg;
 }

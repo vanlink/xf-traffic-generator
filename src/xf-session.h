@@ -1,6 +1,7 @@
 #ifndef XG_GENERATOR_SESSION_H
 #define XG_GENERATOR_SESSION_H
 #include <stdint.h>
+#include <rte_common.h>
 #include "llhttp.h"
 #include "dkfw_timer.h"
 
@@ -18,6 +19,9 @@ typedef struct _session_info_t {
 
     uint32_t simuser_ind;
 
+#if LWIP_TX_ZERO_COPY
+    rte_iova_t msg_iova;
+#endif
     const char *msg;
     uint32_t msg_len;
 
