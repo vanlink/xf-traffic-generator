@@ -44,7 +44,11 @@ static void http_session_msg_next(SESSION *session, STREAM *stream)
 {
     int msg_ind = session->msg_ind;
 
+#if LWIP_TX_ZERO_COPY
+    session->session_msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len, &session->session_msg_iova);
+#else
     session->session_msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len, NULL);
+#endif
     session->msg_ind = msg_ind;
 }
 
@@ -87,7 +91,12 @@ static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
 
     send_cnt = RTE_MIN(room, session->msg_len);
     if(send_cnt){
+#if LWIP_TX_ZERO_COPY
+        err = altcp_write(pcb, session->session_msg, session->session_msg_iova, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+        session->session_msg_iova += send_cnt;
+#else
         err = altcp_write(pcb, session->session_msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+#endif
         if (err !=  ERR_OK) {
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
@@ -113,7 +122,12 @@ static int http_server_send_data(SESSION *session, STREAM *stream, void *pcb)
 
     send_cnt = RTE_MIN(room, session->msg_len);
     if(send_cnt){
+#if LWIP_TX_ZERO_COPY
+        err = altcp_write(pcb, session->session_msg, session->session_msg_iova, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+        session->session_msg_iova += send_cnt;
+#else
         err = altcp_write(pcb, session->session_msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+#endif
         if (err !=  ERR_OK) {
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
