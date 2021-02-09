@@ -70,6 +70,11 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
             if(!m){
                 m = mseq;
             }
+        }else if(lwip_pbuf->pbuf_dpdk_extmbuf){
+            mseq = lwip_pbuf->pbuf_dpdk_extmbuf;
+            if(!m){
+                m = mseq;
+            }
         }else{
             mseq = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
             if(!mseq) {

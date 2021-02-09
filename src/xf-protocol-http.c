@@ -44,7 +44,7 @@ static void http_session_msg_next(SESSION *session, STREAM *stream)
 {
     int msg_ind = session->msg_ind;
 
-    session->msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len, NULL);
+    session->session_msg = protocol_http_msg_get(stream->http_message_ind, &msg_ind, (int *)&session->msg_len, NULL);
     session->msg_ind = msg_ind;
 }
 
@@ -87,12 +87,13 @@ static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
 
     send_cnt = RTE_MIN(room, session->msg_len);
     if(send_cnt){
-        err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+        err = altcp_write(pcb, session->session_msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
         if (err !=  ERR_OK) {
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
         }
         altcp_output(pcb);
+        session->session_msg += send_cnt;
         session->msg_len -= send_cnt;
         if(!session->msg_len){
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_REQUEST);
@@ -112,12 +113,13 @@ static int http_server_send_data(SESSION *session, STREAM *stream, void *pcb)
 
     send_cnt = RTE_MIN(room, session->msg_len);
     if(send_cnt){
-        err = altcp_write(pcb, session->msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
+        err = altcp_write(pcb, session->session_msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
         if (err !=  ERR_OK) {
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
         }
         altcp_output(pcb);
+        session->session_msg += send_cnt;
         session->msg_len -= send_cnt;
         if(!session->msg_len){
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_HTTP_RESPONSE);

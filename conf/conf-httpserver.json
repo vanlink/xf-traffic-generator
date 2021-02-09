@@ -51,7 +51,7 @@
     "http_messages":[
         {
             "messages":[
-                { "path":"/rsp-21k.txt"}
+                { "path":"/rsp-128k.txt"}
             ]
         }
     ],

@@ -20,9 +20,9 @@ typedef struct _session_info_t {
     uint32_t simuser_ind;
 
 #if LWIP_TX_ZERO_COPY
-    rte_iova_t msg_iova;
+    rte_iova_t session_msg_iova;
 #endif
-    const char *msg;
+    const char *session_msg;
     uint32_t msg_len;
 
     struct timer_list timer_session_timeout;
