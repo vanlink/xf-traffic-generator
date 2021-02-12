@@ -238,7 +238,7 @@ exit:
     return ret;
 }
 
-static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
+static int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core)
 {
     struct rte_net_hdr_lens hdr_lens = {0, 0, 0, 0, 0, 0, 0};
     char *dpdkdat;
@@ -329,7 +329,8 @@ static int get_app_core_seq(struct rte_mbuf *m, int *dst_core)
         if(LWIP_NETIF_LPORT_TCP_IS_LISTEN(priv->pnetif, port_humam)){
             // dst to listen port, hash base on src port
             port_humam = rte_bswap16(tcp->src_port);
-            *dst_core = port_humam % g_pkt_process_core_num;
+            // *dst_core = port_humam % g_pkt_process_core_num;
+            *dst_core = seq;
             if(ipv4){
                 /*
                 (gdb) p /x ipv4->dst_addr
@@ -426,7 +427,7 @@ static int dispatch_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    if(get_app_core_seq(pkt, &dst_core) < 0){
+                    if(get_app_core_seq(-1, pkt, &dst_core) < 0){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                     }else{
@@ -629,7 +630,7 @@ static int packet_loop(int seq)
                 busy = 1;
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
-                    if(get_app_core_seq(pkt, &dst_core) < 0){
+                    if(get_app_core_seq(seq, pkt, &dst_core) < 0){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                         continue;
@@ -866,6 +867,7 @@ int main(int argc, char **argv)
     json_array_item = NULL;
     cJSON_ArrayForEach(json_array_item, json_item){
         strcpy(dkfw_config.pcis_config[i].pci_name, json_array_item->valuestring);
+        dkfw_config.pcis_config[i].nic_tx_desc = 1024;
         i++;
     }
 
