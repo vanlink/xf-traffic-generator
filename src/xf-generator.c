@@ -66,6 +66,15 @@ enum {
     PROFILE_ITEM_MAX,
 };
 
+enum {
+    PROFILE_SINGLE_A,
+    PROFILE_SINGLE_B,
+    PROFILE_SINGLE_C,
+    PROFILE_SINGLE_D,
+    PROFILE_SINGLE_E,
+    PROFILE_SINGLE_MAX,
+};
+
 typedef struct _DPDK_MBUF_PRIV_TAG {
     struct netif *pnetif;
     uint32_t mbuf_hash;
@@ -201,14 +210,18 @@ static int init_lwip_json(cJSON *json_root, void *stats_mem)
     return 0;
 }
 
-static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq)
+static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq, DKFW_PROFILE *profiler)
 {
     int dpdklen;
     char *dpdkdat;
     err_t ret = 0;
     struct pbuf *p;
-    MBUF_PRIV_T *priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
+    MBUF_PRIV_T *priv;
+#if !XF_DEBUG_PROFILE
+    (void)profiler;
+#endif
 
+    priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
     dpdklen = rte_pktmbuf_pkt_len(m);
     dpdkdat = rte_pktmbuf_mtod(m, char *);
 
@@ -224,7 +237,14 @@ static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq)
     p->payload = dpdkdat;
     p->pbuf_hash = priv->mbuf_hash;
 
+#if XF_DEBUG_PROFILE
+    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_A);
+#endif
     ret = priv->pnetif->input(p, priv->pnetif);
+#if XF_DEBUG_PROFILE
+    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_A);
+#endif
+
     if(ret != ERR_OK){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_LWIP_PROCESS_FAIL);
         ret = -1;
@@ -238,53 +258,44 @@ exit:
     return ret;
 }
 
-static int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core)
+static int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core, DKFW_PROFILE *profiler)
 {
+    int ret = -1;
     struct rte_net_hdr_lens hdr_lens = {0, 0, 0, 0, 0, 0, 0};
     char *dpdkdat;
     uint32_t ptype;
     uint16_t port_humam;
-    struct rte_ipv4_hdr *ipv4 = NULL;
-    struct rte_ipv6_hdr *ipv6 = NULL;
-    struct rte_tcp_hdr *tcp = NULL;
-    struct rte_udp_hdr *udp = NULL;
-    struct rte_icmp_hdr *icmp = NULL;
-    struct rte_arp_hdr *arp = NULL;
-    struct rte_flow_item_icmp6_nd_ns *icmpv6 = NULL;
-    MBUF_PRIV_T *priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
+    struct rte_ipv4_hdr *ipv4;
+    struct rte_ipv6_hdr *ipv6;
+    struct rte_tcp_hdr *tcp;
+    struct rte_udp_hdr *udp;
+    struct rte_icmp_hdr *icmp;
+    struct rte_arp_hdr *arp;
+    struct rte_flow_item_icmp6_nd_ns *icmpv6;
+    MBUF_PRIV_T *priv;
     uint32_t hash_use_ip;
     uint32_t hash_use_port;
 
+#if XF_DEBUG_PROFILE
+    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
+
+    ipv4 = NULL;
+    ipv6 = NULL;
+    tcp = NULL;
+    udp = NULL;
+    icmp = NULL;
+    arp = NULL;
+    icmpv6 = NULL;
+    priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
     dpdkdat = rte_pktmbuf_mtod(m, char *);
-
     ptype = rte_net_get_ptype(m, &hdr_lens, RTE_PTYPE_ALL_MASK);
-
-    if(unlikely((ptype & RTE_PTYPE_L2_MASK) != RTE_PTYPE_L2_ETHER)){
-        return -1;
-    }
-
-    if(unlikely(((struct rte_ether_hdr *)dpdkdat)->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP))){
-        arp = (struct rte_arp_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
-        priv->pnetif = lwip_get_netif_from_ipv4(arp->arp_data.arp_tip);
-        if(!priv->pnetif){
-            return -1;
-        }
-        if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)){
-            *dst_core = 0;
-        }else if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REPLY)){
-            *dst_core = -1;
-        }else{
-            return -1;
-        }
-
-        return 0;
-    }
 
     if(likely((ptype & RTE_PTYPE_L3_MASK) == RTE_PTYPE_L3_IPV4)){
         ipv4 = (struct rte_ipv4_hdr *)(dpdkdat + hdr_lens.l2_len);
         priv->pnetif = lwip_get_netif_from_ipv4(ipv4->dst_addr);
-        if(!priv->pnetif){
-            return -1;
+        if(unlikely(!priv->pnetif)){
+            goto exit;
         }
     }else if((ptype & RTE_PTYPE_L3_MASK) == RTE_PTYPE_L3_IPV6){
         ipv6 = (struct rte_ipv6_hdr *)(dpdkdat + hdr_lens.l2_len);
@@ -294,33 +305,49 @@ static int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core)
             if(icmpv6->type == ICMP6_TYPE_NS){
                 priv->pnetif = lwip_get_netif_from_ipv6(icmpv6->target_addr);
                 if(!priv->pnetif){
-                    return -1;
+                    goto exit;
                 }
                 *dst_core = 0;
             }else if(icmpv6->type == ICMP6_TYPE_NA){
                 priv->pnetif = lwip_get_netif_from_ipv6(ipv6->dst_addr);
                 if(!priv->pnetif){
-                    return -1;
+                    goto exit;
                 }
                 *dst_core = -1;
             }else if(icmpv6->type == ICMP6_TYPE_EREQ){
                 priv->pnetif = lwip_get_netif_from_ipv6(ipv6->dst_addr);
                 if(!priv->pnetif){
-                    return -1;
+                    goto exit;
                 }
                 *dst_core = 0;
             }else{
-                return -1;
+                goto exit;
             }
-            return 0;
+            ret = 0;
+            goto exit;
         }
 
         priv->pnetif = lwip_get_netif_from_ipv6(ipv6->dst_addr);
         if(!priv->pnetif){
-            return -1;
+            goto exit;
         }
+    }else if(((struct rte_ether_hdr *)dpdkdat)->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)){
+        arp = (struct rte_arp_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
+        priv->pnetif = lwip_get_netif_from_ipv4(arp->arp_data.arp_tip);
+        if(!priv->pnetif){
+            goto exit;
+        }
+        if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)){
+            *dst_core = 0;
+        }else if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REPLY)){
+            *dst_core = -1;
+        }else{
+            goto exit;
+        }
+        ret = 0;
+        goto exit;
     }else{
-        return -1;
+        goto exit;
     }
 
     if(likely((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_TCP)){
@@ -356,19 +383,27 @@ static int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core)
             }
         }
         priv->mbuf_hash = lwip_get_hash_addrport(hash_use_ip, hash_use_port, priv->pnetif->pcb_hash_bucket_cnt);
+        ret = 0;
+        goto exit;
     }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_UDP){
         udp = (struct rte_udp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
         (void)udp;
-        return -1;
+        goto exit;
     }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_ICMP){
         icmp = (struct rte_icmp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
         (void)icmp;
-        return -1;
+        goto exit;
     }else{
-        return -1;
+        goto exit;
     }
 
-    return 0;
+exit:
+
+#if XF_DEBUG_PROFILE
+    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
+
+    return ret;
 }
 
 static void dispatch_second_timer(int seq, uint64_t seconds)
@@ -427,7 +462,7 @@ static int dispatch_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    if(get_app_core_seq(-1, pkt, &dst_core) < 0){
+                    if(get_app_core_seq(-1, pkt, &dst_core, profiler) < 0){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                     }else{
@@ -608,7 +643,7 @@ static int packet_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    pkt_dpdk_to_lwip_real(pkt, seq);
+                    pkt_dpdk_to_lwip_real(pkt, seq, profiler);
                 }
             }
 
@@ -630,14 +665,14 @@ static int packet_loop(int seq)
                 busy = 1;
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
-                    if(get_app_core_seq(seq, pkt, &dst_core) < 0){
+                    if(get_app_core_seq(seq, pkt, &dst_core, profiler) < 0){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                         continue;
                     }
                     if(likely(dst_core >= 0)){
                         if(dst_core == seq){
-                            pkt_dpdk_to_lwip_real(pkt, seq);
+                            pkt_dpdk_to_lwip_real(pkt, seq, profiler);
                         }else{
                             if(unlikely(dkfw_send_pkt_to_process_core_q(dst_core, seq, pkt) < 0)){
                                 rte_pktmbuf_free(pkt);
@@ -680,7 +715,7 @@ static int packet_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    pkt_dpdk_to_lwip_real(pkt, seq);
+                    pkt_dpdk_to_lwip_real(pkt, seq, profiler);
                 }
             }
 
@@ -774,12 +809,12 @@ static int init_generator_profile(SHARED_MEM_T *sm)
 
     for(i=0;i<g_pkt_process_core_num;i++){
         profile = &sm->profile_pkt[i];
-        dkfw_profile_init(profile, PROFILE_ITEM_MAX, 0);
+        dkfw_profile_init(profile, PROFILE_ITEM_MAX, PROFILE_SINGLE_MAX);
     }
 
     for(i=0;i<g_pkt_distribute_core_num;i++){
         profile = &sm->profile_dispatch[i];
-        dkfw_profile_init(profile, PROFILE_ITEM_MAX, 0);
+        dkfw_profile_init(profile, PROFILE_ITEM_MAX, PROFILE_SINGLE_MAX);
     }
 
     return 0;

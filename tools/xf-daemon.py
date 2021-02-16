@@ -90,12 +90,25 @@ def do_log_cpu_one(now, last, filename, ms):
     diff_all = diff["all_time"]
 
     data = "%-20s" % (ms)
+
     for i in diff["items_time"]:
         diff_work = diff_work + i
         item_cpu = i * 100 / diff_all
         data = data + "%-10.2f" % (item_cpu)
+
+    data = data + " | "
+
     all_cpu = diff_work * 100 / diff_all
-    data = data + "%-10.2f" % (all_cpu)
+    data = data + "%-6.2f" % (all_cpu)
+
+    if diff.get("singles_time"):
+        data = data + " | "
+        for i in diff["singles_time"]:
+            item_cpu = i * 100 / diff_all
+            a = "%.2f" % (item_cpu)
+            b = "(%.2f)" % (item_cpu * 100 / all_cpu)
+            data = data + "%-15s" % (a + b)
+
     data = data + "\n"
 
     write_log_to_file(filename, data)
