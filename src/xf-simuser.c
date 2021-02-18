@@ -25,7 +25,7 @@ static void timer_func_simuser_restart(struct timer_list *timer, unsigned long a
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_ATTEMP);
     ret = protocol_common_send_one(stream, LWIP_MY_CPUID, simuser->simusr_ind);
     if(ret < 0){
-        dkfw_start_timer(&g_generator_timer_bases[LWIP_MY_CPUID], timer, timer_func_simuser_restart, simuser, *g_elapsed_ms + SIMUSER_FAIL_INTERVAL_MS);
+        dkfw_start_timer(&g_generator_timer_bases[LWIP_MY_CPUID], timer, timer_func_simuser_restart, simuser, g_elapsed_ms + SIMUSER_FAIL_INTERVAL_MS);
         simuser->simusr_timer_onfly = 1;
     }
 }
@@ -44,7 +44,7 @@ int simuser_attemp(STREAM *stream, SIMUSER *simuser, int core)
         if(simuser->simusr_timer_onfly){
             dkfw_stop_timer(&simuser->simusr_timer);
         }
-        dkfw_start_timer(&g_generator_timer_bases[core], &simuser->simusr_timer, timer_func_simuser_restart, simuser, *g_elapsed_ms + SIMUSER_FAIL_INTERVAL_MS);
+        dkfw_start_timer(&g_generator_timer_bases[core], &simuser->simusr_timer, timer_func_simuser_restart, simuser, g_elapsed_ms + SIMUSER_FAIL_INTERVAL_MS);
         simuser->simusr_timer_onfly = 1;
     }
 
@@ -59,7 +59,7 @@ int simuser_delayed_attemp(SIMUSER *simuser, int core)
     }
 
     if(!simuser->simusr_timer_onfly){
-        dkfw_start_timer(&g_generator_timer_bases[core], &simuser->simusr_timer, timer_func_simuser_restart, simuser, *g_elapsed_ms + SIMUSER_FAIL_INTERVAL_MS);
+        dkfw_start_timer(&g_generator_timer_bases[core], &simuser->simusr_timer, timer_func_simuser_restart, simuser, g_elapsed_ms + SIMUSER_FAIL_INTERVAL_MS);
         simuser->simusr_timer_onfly = 1;
     }
 

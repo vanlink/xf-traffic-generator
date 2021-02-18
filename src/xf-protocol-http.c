@@ -208,7 +208,7 @@ static void timer_func_http_client_msg(struct timer_list *timer, unsigned long a
     STREAM *stream = session->stream;
     struct altcp_pcb *pcb = (struct altcp_pcb *)session->pcb;
 
-    dkfw_restart_timer(&g_generator_timer_bases[LWIP_MY_CPUID], timer, *g_elapsed_ms + stream->ipr * 1000);
+    dkfw_restart_timer(&g_generator_timer_bases[LWIP_MY_CPUID], timer, g_elapsed_ms + stream->ipr * 1000);
 
     http_client_next_msg_check(session, stream, pcb);
 }
@@ -244,12 +244,12 @@ static int protocol_http_client_connecned(SESSION *session, STREAM *stream, void
     llhttp_init(&session->http_parser, HTTP_RESPONSE, &llhttp_settings_response);
     session->http_parser.data = session;
 
-    dkfw_start_timer(&g_generator_timer_bases[LWIP_MY_CPUID], &session->timer_session_timeout, timer_func_session_timeout, session, *g_elapsed_ms + stream->session_timeout_ms);
+    dkfw_start_timer(&g_generator_timer_bases[LWIP_MY_CPUID], &session->timer_session_timeout, timer_func_session_timeout, session, g_elapsed_ms + stream->session_timeout_ms);
     session->timer_session_timeout_onfly = 1;
     GENERATOR_STATS_PAIR_START_INC(GENERATOR_STATS_TIMER_SESSION_TIMEOUT);
 
     if(stream->ipr){
-        dkfw_start_timer(&g_generator_timer_bases[LWIP_MY_CPUID], &session->timer_msg_interval, timer_func_http_client_msg, session, *g_elapsed_ms + stream->ipr * 1000);
+        dkfw_start_timer(&g_generator_timer_bases[LWIP_MY_CPUID], &session->timer_msg_interval, timer_func_http_client_msg, session, g_elapsed_ms + stream->ipr * 1000);
         session->timer_msg_interval_onfly = 1;
         GENERATOR_STATS_PAIR_START_INC(GENERATOR_STATS_TIMER_MSG_INTERVAL);
     }

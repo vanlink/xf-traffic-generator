@@ -5,7 +5,7 @@
 #include "dkfw_stats.h"
 #include "dkfw_timer.h"
 
-#define XF_DEBUG_PROFILE 1
+#define XF_DEBUG_PROFILE 0
 
 #define XF_BASE_DIR "/var/log/xf-traffic-generator"
 
@@ -39,7 +39,7 @@ enum {
 };
 
 extern uint64_t tsc_per_sec;
-extern uint64_t *g_elapsed_ms;
+extern uint64_t g_elapsed_ms;
 extern DKFW_STATS *g_generator_stats;
 extern tvec_base_t *g_generator_timer_bases;
 

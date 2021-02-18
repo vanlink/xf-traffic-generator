@@ -88,7 +88,7 @@ static char conf_file_path[128] = {0};
 static DKFW_CONFIG dkfw_config;
 
 uint64_t tsc_per_sec;
-uint64_t *g_elapsed_ms;
+uint64_t g_elapsed_ms;
 
 DKFW_STATS *g_generator_stats = NULL;
 DKFW_STATS *g_dispatch_stats = NULL;
@@ -137,7 +137,7 @@ static int cmd_parse_args(int argc, char **argv)
 }
 
 u32_t sys_now(void){
-    return *g_elapsed_ms;
+    return g_elapsed_ms;
 }
 
 static int init_pktmbuf_pool(void)
@@ -523,13 +523,13 @@ static int dispatch_loop(int seq)
         DKFW_PROFILE_START(profiler, time_0);
 
         DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_TIMER);
-        if(*g_elapsed_ms - elapsed_second_last >= 1000){
+        if(g_elapsed_ms - elapsed_second_last >= 1000){
 
             busy = 1;
 
-            dispatch_second_timer(seq, *g_elapsed_ms / 1000);
+            dispatch_second_timer(seq, g_elapsed_ms / 1000);
 
-            elapsed_second_last = *g_elapsed_ms;
+            elapsed_second_last = g_elapsed_ms;
         }
         time_0 = rte_rdtsc();
         if(busy){
@@ -631,7 +631,7 @@ static int packet_loop(int seq)
 
     time_0 = rte_rdtsc();
 
-    *g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
+    g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
 
     lwip_init_per_core(seq);
 
@@ -658,7 +658,7 @@ static int packet_loop(int seq)
         DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_TIMER);
 
         if(seq == 0){
-            *g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
+            g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
         }
 
 #if USE_TX_BUFFER
@@ -670,21 +670,25 @@ static int packet_loop(int seq)
         }
 #endif
 
-        if(*g_elapsed_ms != elapsed_ms_last){
+        if(g_elapsed_ms != elapsed_ms_last){
 
             busy = 1;
 
-            elapsed_ms_last = *g_elapsed_ms;
+            elapsed_ms_last = g_elapsed_ms;
 
-            sys_check_timeouts(*g_elapsed_ms);
+            if(seq == 0){
+                g_generator_shared_mem->elapsed_ms = g_elapsed_ms;
+            }
 
-            dkfw_run_timer(&g_generator_timer_bases[seq], *g_elapsed_ms);
+            sys_check_timeouts(g_elapsed_ms);
 
-            if(*g_elapsed_ms - elapsed_second_last >= 1000){
+            dkfw_run_timer(&g_generator_timer_bases[seq], g_elapsed_ms);
 
-                packet_second_timer(seq, *g_elapsed_ms / 1000);
+            if(g_elapsed_ms - elapsed_second_last >= 1000){
+
+                packet_second_timer(seq, g_elapsed_ms / 1000);
                 
-                elapsed_second_last = *g_elapsed_ms;
+                elapsed_second_last = g_elapsed_ms;
             }
 
         }
@@ -702,7 +706,7 @@ static int packet_loop(int seq)
         for(i=0;i<g_stream_cnt;i++){
             stream = g_streams[i];
             if(stream->stream_send){
-                send_cnt = stream->stream_send(stream, seq, time_0, *g_elapsed_ms);
+                send_cnt = stream->stream_send(stream, seq, time_0, g_elapsed_ms);
                 if(send_cnt){
                     busy = 1;
                 }
@@ -1010,8 +1014,6 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    g_elapsed_ms = &g_generator_shared_mem->elapsed_ms;
-
     g_generator_shared_mem->pkt_core_cnt = g_pkt_process_core_num;
     g_generator_shared_mem->dispatch_core_cnt = g_pkt_distribute_core_num;
     g_generator_shared_mem->interface_cnt = g_dkfw_interfaces_num;
@@ -1021,7 +1023,7 @@ int main(int argc, char **argv)
         goto err;
     }
 
-    *g_elapsed_ms = rte_rdtsc() * 1000ULL / tsc_per_sec;
+    g_elapsed_ms = rte_rdtsc() * 1000ULL / tsc_per_sec;
 
     init_lwip_json(json_root, &g_generator_shared_mem->stats_lwip);
 
@@ -1070,7 +1072,7 @@ int main(int argc, char **argv)
 
     g_generator_timer_bases = rte_zmalloc(NULL, sizeof(tvec_base_t) * g_pkt_process_core_num, 0);
     for(i=0;i<g_pkt_process_core_num;i++){
-        dkfw_init_timers(&g_generator_timer_bases[i], *g_elapsed_ms);
+        dkfw_init_timers(&g_generator_timer_bases[i], g_elapsed_ms);
     }
 
     printf("config done.\n");
