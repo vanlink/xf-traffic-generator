@@ -433,13 +433,7 @@ static __rte_always_inline int get_app_core_seq_2(int seq, struct rte_mbuf *m, i
 
     if(likely(rte_bswap16(ethhdr->ether_type) == RTE_ETHER_TYPE_IPV4)){
         ipv4 = (struct rte_ipv4_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
-#if XF_DEBUG_PROFILE
-        DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
-#endif
         priv->pnetif = lwip_get_netif_from_ipv4(ipv4->dst_addr);
-#if XF_DEBUG_PROFILE
-        DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
-#endif
         if(unlikely(!priv->pnetif)){
             goto exit;
         }
