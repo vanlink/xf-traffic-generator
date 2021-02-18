@@ -41,6 +41,10 @@ def get_log_filename_packet_cpu(seq):
     filename = "cpu-packet-%s.stat" % (seq)
     return os.path.join(DIR_UNIQUE, filename)
 
+def get_log_filename_packet_cpu_loopcnt(seq):
+    filename = "cpu-packet-loopcnt-%s.stat" % (seq)
+    return os.path.join(DIR_UNIQUE, filename)
+
 def get_log_filename_dispatch_cpu(seq):
     filename = "cpu-dispatch-%s.stat" % (seq)
     return os.path.join(DIR_UNIQUE, filename)
@@ -113,6 +117,34 @@ def do_log_cpu_one(now, last, filename, ms):
 
     write_log_to_file(filename, data)
 
+def do_log_cpu_loopcnt_one(now, last, filename, ms):
+    diff = StatDict(now) - StatDict(last)
+    
+    data = "%-20s" % (ms)
+    
+    for i in range(0, len(diff["items_time"])):
+        tscs = diff["items_time"][i]
+        loops = diff["items_time_cnt"][i]
+        if loops:
+            tpl = tscs // loops
+        else:
+            tpl = 0
+        data = data + "%-10s" % (tpl)
+    
+    data = data + " | "
+    
+    for i in range(0, len(diff["singles_time"])):
+        tscs = diff["singles_time"][i]
+        loops = diff["singles_time_cnt"][i]
+        if loops:
+            tpl = tscs // loops
+        else:
+            tpl = 0
+        data = data + "%-10s" % (tpl)
+
+    data = data + "\n"
+    write_log_to_file(filename, data)
+
 def do_log_cpu():
     r = get_dict_from_url("/get_cpu")
     if not r:
@@ -122,9 +154,11 @@ def do_log_cpu():
 
     for i in range(0, PACKET_CORE_CNT):
         filename = get_log_filename_packet_cpu(i)
+        filename_loopcnt = get_log_filename_packet_cpu_loopcnt(i)
         now = r["profile_pkt"][i]
         if CPU_PACKET_LAST[i]:
             do_log_cpu_one(now, CPU_PACKET_LAST[i], filename, ms)
+            do_log_cpu_loopcnt_one(now, CPU_PACKET_LAST[i], filename_loopcnt, ms)
         CPU_PACKET_LAST[i] = now
 
     for i in range(0, DISPATCH_CORE_CNT):

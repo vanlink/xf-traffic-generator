@@ -5,7 +5,7 @@
 #include "dkfw_stats.h"
 #include "dkfw_timer.h"
 
-#define XF_DEBUG_PROFILE 0
+#define XF_DEBUG_PROFILE 1
 
 #define XF_BASE_DIR "/var/log/xf-traffic-generator"
 
