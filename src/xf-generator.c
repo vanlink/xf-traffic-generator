@@ -210,7 +210,7 @@ static int init_lwip_json(cJSON *json_root, void *stats_mem)
     return 0;
 }
 
-static int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq, DKFW_PROFILE *profiler)
+static __rte_always_inline int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq, DKFW_PROFILE *profiler)
 {
     int dpdklen;
     char *dpdkdat;
@@ -258,7 +258,7 @@ exit:
     return ret;
 }
 
-static int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core, DKFW_PROFILE *profiler)
+static __rte_always_inline int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core, DKFW_PROFILE *profiler)
 {
     int ret = -1;
     struct rte_net_hdr_lens hdr_lens = {0, 0, 0, 0, 0, 0, 0};
@@ -277,7 +277,7 @@ static int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core, DKFW_PRO
     uint32_t hash_use_port;
 
 #if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
+    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
 #endif
 
     ipv4 = NULL;
@@ -400,7 +400,100 @@ static int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core, DKFW_PRO
 exit:
 
 #if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
+    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
+#endif
+
+    return ret;
+}
+
+static __rte_always_inline int get_app_core_seq_2(int seq, struct rte_mbuf *m, int *dst_core, DKFW_PROFILE *profiler)
+{
+    int ret = -1;
+    char *dpdkdat;
+    uint16_t port_humam;
+    struct rte_ether_hdr *ethhdr;
+    struct rte_ipv4_hdr *ipv4;
+    struct rte_ipv6_hdr *ipv6;
+    struct rte_tcp_hdr *tcp;
+    struct rte_udp_hdr *udp;
+    struct rte_icmp_hdr *icmp;
+    struct rte_arp_hdr *arp;
+    struct rte_flow_item_icmp6_nd_ns *icmpv6;
+    MBUF_PRIV_T *priv;
+    uint32_t hash_use_ip;
+    uint32_t hash_use_port;
+
+#if XF_DEBUG_PROFILE
+    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
+#endif
+
+    priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
+    dpdkdat = rte_pktmbuf_mtod(m, char *);
+    ethhdr = (struct rte_ether_hdr *)dpdkdat;
+
+    if(likely(rte_bswap16(ethhdr->ether_type) == RTE_ETHER_TYPE_IPV4)){
+        ipv4 = (struct rte_ipv4_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
+#if XF_DEBUG_PROFILE
+        DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
+        priv->pnetif = lwip_get_netif_from_ipv4(ipv4->dst_addr);
+#if XF_DEBUG_PROFILE
+        DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
+        if(unlikely(!priv->pnetif)){
+            goto exit;
+        }
+        if(likely(ipv4->next_proto_id == IPPROTO_TCP)){
+            tcp = (struct rte_tcp_hdr *)((char *)ipv4 + ((ipv4->version_ihl & 0x0f) << 2));
+            port_humam = rte_bswap16(tcp->dst_port);
+            if(LWIP_NETIF_LPORT_TCP_IS_LISTEN(priv->pnetif, port_humam)){
+                // dst to listen port, hash base on src port
+                port_humam = rte_bswap16(tcp->src_port);
+                *dst_core = seq;
+                hash_use_ip = rte_bswap32(ipv4->src_addr);
+                hash_use_port = port_humam;
+            }else{
+                // dst to client port, hash base on dst port
+                *dst_core = port_humam % g_pkt_process_core_num;
+                hash_use_ip = rte_bswap32(ipv4->dst_addr);
+                hash_use_port = port_humam;
+            }
+            priv->mbuf_hash = lwip_get_hash_addrport(hash_use_ip, hash_use_port, priv->pnetif->pcb_hash_bucket_cnt);
+            ret = 0;
+        }else if(ipv4->next_proto_id == IPPROTO_UDP){
+        }else if(ipv4->next_proto_id == IPPROTO_ICMP){
+        }else{
+            goto exit;
+        }
+    }else if(rte_bswap16(ethhdr->ether_type) == RTE_ETHER_TYPE_ARP){
+        arp = (struct rte_arp_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
+        priv->pnetif = lwip_get_netif_from_ipv4(arp->arp_data.arp_tip);
+        if(!priv->pnetif){
+            goto exit;
+        }
+        if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)){
+            *dst_core = 0;
+        }else if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REPLY)){
+            *dst_core = -1;
+        }else{
+            goto exit;
+        }
+        ret = 0;
+    }else if(rte_bswap16(ethhdr->ether_type) == RTE_ETHER_TYPE_IPV6){
+        ipv6 = (struct rte_ipv6_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
+        if(ipv6->proto == IPPROTO_TCP){
+            tcp = (struct rte_tcp_hdr *)((char *)ipv6 + sizeof(struct rte_ipv6_hdr));
+        }else if(ipv6->proto == IPPROTO_UDP){
+        }else if(ipv6->proto == IPPROTO_ICMPV6){
+        }else{
+            goto exit;
+        }
+    }
+
+exit:
+
+#if XF_DEBUG_PROFILE
+    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
 #endif
 
     return ret;
@@ -462,7 +555,7 @@ static int dispatch_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    if(get_app_core_seq(-1, pkt, &dst_core, profiler) < 0){
+                    if(get_app_core_seq_2(-1, pkt, &dst_core, profiler) < 0){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                     }else{
@@ -507,7 +600,7 @@ static int dispatch_loop(int seq)
     return 0;
 }
 
-static void packet_second_timer(int seq, uint64_t seconds)
+static __rte_always_inline void packet_second_timer(int seq, uint64_t seconds)
 {
     (void)seconds;
 
@@ -665,7 +758,7 @@ static int packet_loop(int seq)
                 busy = 1;
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
-                    if(get_app_core_seq(seq, pkt, &dst_core, profiler) < 0){
+                    if(get_app_core_seq_2(seq, pkt, &dst_core, profiler) < 0){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                         continue;
