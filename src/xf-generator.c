@@ -275,6 +275,9 @@ static __rte_always_inline int get_app_core_seq(int seq, struct rte_mbuf *m, int
     MBUF_PRIV_T *priv;
     uint32_t hash_use_ip;
     uint32_t hash_use_port;
+#if !XF_DEBUG_PROFILE
+    (void)profiler;
+#endif
 
 #if XF_DEBUG_PROFILE
     DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
@@ -415,13 +418,14 @@ static __rte_always_inline int get_app_core_seq_2(int seq, struct rte_mbuf *m, i
     struct rte_ipv4_hdr *ipv4;
     struct rte_ipv6_hdr *ipv6;
     struct rte_tcp_hdr *tcp;
-    struct rte_udp_hdr *udp;
-    struct rte_icmp_hdr *icmp;
     struct rte_arp_hdr *arp;
     struct rte_flow_item_icmp6_nd_ns *icmpv6;
     MBUF_PRIV_T *priv;
     uint32_t hash_use_ip;
     uint32_t hash_use_port;
+#if !XF_DEBUG_PROFILE
+    (void)profiler;
+#endif
 
 #if XF_DEBUG_PROFILE
     DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
@@ -456,8 +460,6 @@ static __rte_always_inline int get_app_core_seq_2(int seq, struct rte_mbuf *m, i
             ret = 0;
         }else if(ipv4->next_proto_id == IPPROTO_UDP){
         }else if(ipv4->next_proto_id == IPPROTO_ICMP){
-        }else{
-            goto exit;
         }
     }else if(rte_bswap16(ethhdr->ether_type) == RTE_ETHER_TYPE_ARP){
         arp = (struct rte_arp_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
@@ -479,8 +481,7 @@ static __rte_always_inline int get_app_core_seq_2(int seq, struct rte_mbuf *m, i
             tcp = (struct rte_tcp_hdr *)((char *)ipv6 + sizeof(struct rte_ipv6_hdr));
         }else if(ipv6->proto == IPPROTO_UDP){
         }else if(ipv6->proto == IPPROTO_ICMPV6){
-        }else{
-            goto exit;
+            (void)icmpv6;
         }
     }
 
