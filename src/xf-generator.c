@@ -229,7 +229,13 @@ static __rte_always_inline int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq
         capture_do_capture(seq, dpdkdat, dpdklen);
     }
 
+#if XF_DEBUG_PROFILE
+    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
     p = pbuf_alloc(PBUF_RAW, dpdklen, PBUF_POOL);
+#if XF_DEBUG_PROFILE
+    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
     if(!p) {
          ret = -1;
         goto exit;
