@@ -799,6 +799,9 @@ static int packet_loop(int seq)
             DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_RECV_QUEUE);
 
             for(i=0;i<g_pkt_process_core_num;i++){
+                if(i == seq){
+                    continue;
+                }
                 rx_num = dkfw_rcv_pkt_from_process_core_q(seq, i, pkts_burst, MAX_RCV_PKTS);
                 if(unlikely(!rx_num)){
                     continue;
