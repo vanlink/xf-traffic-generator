@@ -787,8 +787,12 @@ static int packet_loop(int seq)
                         }
                         priv_dst = (MBUF_PRIV_T *)rte_mbuf_to_priv(clone);
                         rte_memcpy(priv_dst, priv_src, sizeof(MBUF_PRIV_T));
-                        if(unlikely(dkfw_send_pkt_to_process_core_q(cind, seq, clone) < 0)){
-                            rte_pktmbuf_free(clone);
+                        if(cind == seq){
+                            pkt_dpdk_to_lwip_real(clone, seq, profiler);
+                        }else{
+                            if(unlikely(dkfw_send_pkt_to_process_core_q(cind, seq, clone) < 0)){
+                                rte_pktmbuf_free(clone);
+                            }
                         }
                     }
                     rte_pktmbuf_free(pkt);
