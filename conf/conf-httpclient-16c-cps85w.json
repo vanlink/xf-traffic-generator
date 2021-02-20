@@ -7,19 +7,19 @@
     ],
 
     "mem_static_pools": {
-        "pcb-altcp": 2000000,
+        "pcb-altcp": 65536,
         "pcb-tcp-listen": 2048,
         "pcb-tcp": 2000000,
-        "tcp-seg": 500000,
+        "tcp-seg": 65536,
         "arp-q": 2048,
         "nd6-q": 2048,
         "pbuf-pool": 65536,
-        "pbuf": 200000,
+        "pbuf": 65536,
         "sys-timeout": 2048
     },
 
     "mem_step_pools": [
-        {"size":2048, "cnt":200000},
+        {"size":2048, "cnt":65536},
         {"size":4096, "cnt":65536},
         {"size":8192, "cnt":8192},
         {"size":16384, "cnt":2048},
@@ -27,7 +27,7 @@
         {"size":65536, "cnt":2048}
     ],
 
-    "sessions": 2000000,
+    "sessions": 65536,
 
     "networks": [
         {
