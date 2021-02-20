@@ -971,6 +971,7 @@ int main(int argc, char **argv)
     memset(&dkfw_config, 0, sizeof(dkfw_config));
     strcpy(dkfw_config.nuique_name, unique_id);
     dkfw_config.single_process = 1;
+    dkfw_config.number_of_channels = 4;
 
     json_item = cJSON_GetObjectItem(json_root, "cores-process");
     if(!json_item || json_item->type != cJSON_Array){
