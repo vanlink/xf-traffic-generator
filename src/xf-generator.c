@@ -267,157 +267,6 @@ exit:
 static __rte_always_inline int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core, DKFW_PROFILE *profiler)
 {
     int ret = -1;
-    struct rte_net_hdr_lens hdr_lens = {0, 0, 0, 0, 0, 0, 0};
-    char *dpdkdat;
-    uint32_t ptype;
-    uint16_t port_humam;
-    struct rte_ipv4_hdr *ipv4;
-    struct rte_ipv6_hdr *ipv6;
-    struct rte_tcp_hdr *tcp;
-    struct rte_udp_hdr *udp;
-    struct rte_icmp_hdr *icmp;
-    struct rte_arp_hdr *arp;
-    struct rte_flow_item_icmp6_nd_ns *icmpv6;
-    MBUF_PRIV_T *priv;
-    uint32_t hash_use_ip;
-    uint32_t hash_use_port;
-#if !XF_DEBUG_PROFILE
-    (void)profiler;
-#endif
-
-#if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
-#endif
-
-    ipv4 = NULL;
-    ipv6 = NULL;
-    tcp = NULL;
-    udp = NULL;
-    icmp = NULL;
-    arp = NULL;
-    icmpv6 = NULL;
-    priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
-    dpdkdat = rte_pktmbuf_mtod(m, char *);
-    ptype = rte_net_get_ptype(m, &hdr_lens, RTE_PTYPE_ALL_MASK);
-
-    if(likely((ptype & RTE_PTYPE_L3_MASK) == RTE_PTYPE_L3_IPV4)){
-        ipv4 = (struct rte_ipv4_hdr *)(dpdkdat + hdr_lens.l2_len);
-        priv->pnetif = lwip_get_netif_from_ipv4(ipv4->dst_addr);
-        if(unlikely(!priv->pnetif)){
-            goto exit;
-        }
-    }else if((ptype & RTE_PTYPE_L3_MASK) == RTE_PTYPE_L3_IPV6){
-        ipv6 = (struct rte_ipv6_hdr *)(dpdkdat + hdr_lens.l2_len);
-
-        if(unlikely(ipv6->proto == IPPROTO_ICMPV6)){
-            icmpv6 = (struct rte_flow_item_icmp6_nd_ns *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
-            if(icmpv6->type == ICMP6_TYPE_NS){
-                priv->pnetif = lwip_get_netif_from_ipv6(icmpv6->target_addr);
-                if(!priv->pnetif){
-                    goto exit;
-                }
-                *dst_core = 0;
-            }else if(icmpv6->type == ICMP6_TYPE_NA){
-                priv->pnetif = lwip_get_netif_from_ipv6(ipv6->dst_addr);
-                if(!priv->pnetif){
-                    goto exit;
-                }
-                *dst_core = -1;
-            }else if(icmpv6->type == ICMP6_TYPE_EREQ){
-                priv->pnetif = lwip_get_netif_from_ipv6(ipv6->dst_addr);
-                if(!priv->pnetif){
-                    goto exit;
-                }
-                *dst_core = 0;
-            }else{
-                goto exit;
-            }
-            ret = 0;
-            goto exit;
-        }
-
-        priv->pnetif = lwip_get_netif_from_ipv6(ipv6->dst_addr);
-        if(!priv->pnetif){
-            goto exit;
-        }
-    }else if(((struct rte_ether_hdr *)dpdkdat)->ether_type == rte_cpu_to_be_16(RTE_ETHER_TYPE_ARP)){
-        arp = (struct rte_arp_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
-        priv->pnetif = lwip_get_netif_from_ipv4(arp->arp_data.arp_tip);
-        if(!priv->pnetif){
-            goto exit;
-        }
-        if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)){
-            *dst_core = 0;
-        }else if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REPLY)){
-            *dst_core = -1;
-        }else{
-            goto exit;
-        }
-        ret = 0;
-        goto exit;
-    }else{
-        goto exit;
-    }
-
-    if(likely((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_TCP)){
-        tcp = (struct rte_tcp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
-        port_humam = rte_bswap16(tcp->dst_port);
-        if(LWIP_NETIF_LPORT_TCP_IS_LISTEN(priv->pnetif, port_humam)){
-            // dst to listen port, hash base on src port
-            port_humam = rte_bswap16(tcp->src_port);
-            // *dst_core = port_humam % g_pkt_process_core_num;
-            *dst_core = seq;
-            if(ipv4){
-                /*
-                (gdb) p /x ipv4->dst_addr
-                $4 = 0x101a8c0
-                (gdb) p /x ipv4->src_addr
-                $5 = 0xfe01a8c0
-                */
-                hash_use_ip = rte_bswap32(ipv4->src_addr);
-                hash_use_port = port_humam;
-            }else{
-                hash_use_ip = 0;
-                hash_use_port = 0;
-            }
-        }else{
-            // dst to client port, hash base on dst port
-            *dst_core = port_humam % g_pkt_process_core_num;
-            if(ipv4){
-                hash_use_ip = rte_bswap32(ipv4->dst_addr);
-                hash_use_port = port_humam;
-            }else{
-                hash_use_ip = 0;
-                hash_use_port = 0;
-            }
-        }
-        priv->mbuf_hash = lwip_get_hash_addrport(hash_use_ip, hash_use_port, priv->pnetif->pcb_hash_bucket_cnt);
-        ret = 0;
-        goto exit;
-    }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_UDP){
-        udp = (struct rte_udp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
-        (void)udp;
-        goto exit;
-    }else if((ptype & RTE_PTYPE_L4_MASK) == RTE_PTYPE_L4_ICMP){
-        icmp = (struct rte_icmp_hdr *)(dpdkdat + hdr_lens.l2_len + hdr_lens.l3_len);
-        (void)icmp;
-        goto exit;
-    }else{
-        goto exit;
-    }
-
-exit:
-
-#if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
-#endif
-
-    return ret;
-}
-
-static __rte_always_inline int get_app_core_seq_2(int seq, struct rte_mbuf *m, int *dst_core, DKFW_PROFILE *profiler)
-{
-    int ret = -1;
     char *dpdkdat;
     uint16_t port_humam;
     struct rte_ether_hdr *ethhdr;
@@ -470,17 +319,21 @@ static __rte_always_inline int get_app_core_seq_2(int seq, struct rte_mbuf *m, i
     }else if(rte_bswap16(ethhdr->ether_type) == RTE_ETHER_TYPE_ARP){
         arp = (struct rte_arp_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
         priv->pnetif = lwip_get_netif_from_ipv4(arp->arp_data.arp_tip);
-        if(!priv->pnetif){
-            goto exit;
+        if(priv->pnetif){
+            if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)){
+                *dst_core = 0;
+                ret = 0;
+            }else if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REPLY)){
+                *dst_core = -1;
+                ret = 0;
+            }
+        }else if(arp->arp_data.arp_sip == arp->arp_data.arp_tip){
+            priv->pnetif = lwip_get_netif_first_ipv4();
+            if(priv->pnetif){
+                *dst_core = -1;
+                ret = 0;
+            }
         }
-        if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REQUEST)){
-            *dst_core = 0;
-        }else if(arp->arp_opcode == rte_cpu_to_be_16(RTE_ARP_OP_REPLY)){
-            *dst_core = -1;
-        }else{
-            goto exit;
-        }
-        ret = 0;
     }else if(rte_bswap16(ethhdr->ether_type) == RTE_ETHER_TYPE_IPV6){
         ipv6 = (struct rte_ipv6_hdr *)(dpdkdat + RTE_ETHER_HDR_LEN);
         if(ipv6->proto == IPPROTO_TCP){
@@ -556,7 +409,7 @@ static int dispatch_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    if(get_app_core_seq_2(-1, pkt, &dst_core, profiler) < 0){
+                    if(get_app_core_seq(-1, pkt, &dst_core, profiler) < 0){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                     }else{
@@ -763,7 +616,7 @@ static int packet_loop(int seq)
                 busy = 1;
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
-                    if(get_app_core_seq_2(seq, pkt, &dst_core, profiler) < 0){
+                    if(get_app_core_seq(seq, pkt, &dst_core, profiler) < 0){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                         continue;
@@ -1053,6 +906,11 @@ int main(int argc, char **argv)
         goto err;
     }
 
+    if(init_capture(json_root) < 0){
+        ret = -1;
+        goto err;
+    }
+
     if(init_networks(json_root) < 0){
         ret = -1;
         goto err;
@@ -1074,11 +932,6 @@ int main(int argc, char **argv)
     }
 
     if(init_streams(json_root) < 0){
-        ret = -1;
-        goto err;
-    }
-
-    if(init_capture(json_root) < 0){
         ret = -1;
         goto err;
     }
