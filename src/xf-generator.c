@@ -58,29 +58,14 @@
 #include "xf-protocol-common.h"
 #include "xf-protocol-http.h"
 
-enum {
-    PROFILE_ITEM_TIMER,
-    PROFILE_ITEM_SEND,
-    PROFILE_ITEM_RECV_INTF,
-    PROFILE_ITEM_RECV_QUEUE,
-    PROFILE_ITEM_MAX,
-};
-
-enum {
-    PROFILE_SINGLE_A,
-    PROFILE_SINGLE_B,
-    PROFILE_SINGLE_C,
-    PROFILE_SINGLE_D,
-    PROFILE_SINGLE_E,
-    PROFILE_SINGLE_MAX,
-};
-
 typedef struct _DPDK_MBUF_PRIV_TAG {
     struct netif *pnetif;
     uint32_t mbuf_hash;
 } MBUF_PRIV_T;
 
 #define MAX_RCV_PKTS 32
+
+RTE_DEFINE_PER_LCORE(DKFW_PROFILE *, g_profiler);
 
 char unique_id[64] = {0};
 static char conf_file_path[128] = {0};
@@ -210,16 +195,13 @@ static int init_lwip_json(cJSON *json_root, void *stats_mem)
     return 0;
 }
 
-static __rte_always_inline int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq, DKFW_PROFILE *profiler)
+static __rte_always_inline int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq)
 {
     int dpdklen;
     char *dpdkdat;
     err_t ret = 0;
     struct pbuf *p;
     MBUF_PRIV_T *priv;
-#if !XF_DEBUG_PROFILE
-    (void)profiler;
-#endif
 
     priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
     dpdklen = rte_pktmbuf_pkt_len(m);
@@ -229,13 +211,7 @@ static __rte_always_inline int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq
         capture_do_capture(seq, dpdkdat, dpdklen);
     }
 
-#if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
-#endif
     p = pbuf_alloc(PBUF_RAW, dpdklen, PBUF_POOL);
-#if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_C);
-#endif
     if(!p) {
          ret = -1;
         goto exit;
@@ -244,11 +220,11 @@ static __rte_always_inline int pkt_dpdk_to_lwip_real(struct rte_mbuf *m, int seq
     p->pbuf_hash = priv->mbuf_hash;
 
 #if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_A);
+    DKFW_PROFILE_SINGLE_START(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_A);
 #endif
     ret = priv->pnetif->input(p, priv->pnetif);
 #if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_A);
+    DKFW_PROFILE_SINGLE_END(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_A);
 #endif
 
     if(ret != ERR_OK){
@@ -264,7 +240,7 @@ exit:
     return ret;
 }
 
-static __rte_always_inline int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core, DKFW_PROFILE *profiler)
+static __rte_always_inline int get_app_core_seq(int seq, struct rte_mbuf *m, int *dst_core)
 {
     int ret = -1;
     char *dpdkdat;
@@ -278,13 +254,6 @@ static __rte_always_inline int get_app_core_seq(int seq, struct rte_mbuf *m, int
     MBUF_PRIV_T *priv;
     uint32_t hash_use_ip;
     uint32_t hash_use_port;
-#if !XF_DEBUG_PROFILE
-    (void)profiler;
-#endif
-
-#if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_START(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
-#endif
 
     priv = (MBUF_PRIV_T *)rte_mbuf_to_priv(m);
     dpdkdat = rte_pktmbuf_mtod(m, char *);
@@ -346,10 +315,6 @@ static __rte_always_inline int get_app_core_seq(int seq, struct rte_mbuf *m, int
 
 exit:
 
-#if XF_DEBUG_PROFILE
-    DKFW_PROFILE_SINGLE_END(profiler, rte_rdtsc(), PROFILE_SINGLE_B);
-#endif
-
     return ret;
 }
 
@@ -369,8 +334,9 @@ static int dispatch_loop(int seq)
     int dst_core = 0;
     MBUF_PRIV_T *priv_src;
     MBUF_PRIV_T *priv_dst;
-    DKFW_PROFILE *profiler = &g_generator_shared_mem->profile_dispatch[seq];
     int busy;
+
+    PROFILER_CORE = &g_generator_shared_mem->profile_dispatch[seq];
 
     printf("dispatch loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
 
@@ -380,9 +346,9 @@ static int dispatch_loop(int seq)
 
         busy = 0;
 
-        DKFW_PROFILE_START(profiler, time_0);
+        DKFW_PROFILE_START(PROFILER_CORE, time_0);
 
-        DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_TIMER);
+        DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_TIMER);
         if(g_elapsed_ms - elapsed_second_last >= 1000){
 
             busy = 1;
@@ -393,12 +359,12 @@ static int dispatch_loop(int seq)
         }
         time_0 = rte_rdtsc();
         if(busy){
-            DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_TIMER);
+            DKFW_PROFILE_ITEM_END(PROFILER_CORE, time_0, PROFILE_ITEM_TIMER);
         }
 
         busy = 0;
 
-        DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_RECV_INTF);
+        DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_INTF);
 
         for(i=0;i<g_dkfw_interfaces_num;i++){
             rx_num = dkfw_rcv_pkt_from_interface(i, seq, pkts_burst, MAX_RCV_PKTS);
@@ -409,7 +375,7 @@ static int dispatch_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    if(get_app_core_seq(-1, pkt, &dst_core, profiler) < 0){
+                    if(get_app_core_seq(-1, pkt, &dst_core) < 0){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                     }else{
@@ -441,10 +407,10 @@ static int dispatch_loop(int seq)
         time_0 = rte_rdtsc();
 
         if(busy){
-            DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_RECV_INTF);
+            DKFW_PROFILE_ITEM_END(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_INTF);
         }
         
-        DKFW_PROFILE_END(profiler, time_0);
+        DKFW_PROFILE_END(PROFILER_CORE, time_0);
 
         if(unlikely(cmd_exit)){
             break;
@@ -476,7 +442,6 @@ static int packet_loop(int seq)
     struct rte_mbuf *pkt;
     int rx_num, pktind;
     STREAM *stream;
-    DKFW_PROFILE *profiler = &g_generator_shared_mem->profile_pkt[seq];
     int busy;
     int dst_core = 0;
     struct rte_mbuf *clone;
@@ -486,6 +451,8 @@ static int packet_loop(int seq)
     uint64_t drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) / US_PER_S * BURST_TX_DRAIN_US;
     uint64_t diff_tsc, prev_tsc = 0;
 #endif
+
+    PROFILER_CORE = &g_generator_shared_mem->profile_pkt[seq];
 
     printf("packet loop seq=%d tsc_per_sec=%lu\n", seq, tsc_per_sec);
 
@@ -513,9 +480,9 @@ static int packet_loop(int seq)
 
         time_0 = rte_rdtsc();
 
-        DKFW_PROFILE_START(profiler, time_0);
+        DKFW_PROFILE_START(PROFILER_CORE, time_0);
 
-        DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_TIMER);
+        DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_TIMER);
 
         if(seq == 0){
             g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
@@ -556,12 +523,12 @@ static int packet_loop(int seq)
         time_0 = rte_rdtsc();
 
         if(busy){
-            DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_TIMER);
+            DKFW_PROFILE_ITEM_END(PROFILER_CORE, time_0, PROFILE_ITEM_TIMER);
         }
 
         busy = 0;
 
-        DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_SEND);
+        DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_SEND);
 
         for(i=0;i<g_stream_cnt;i++){
             stream = g_streams[i];
@@ -576,14 +543,14 @@ static int packet_loop(int seq)
         time_0 = rte_rdtsc();
 
         if(busy){
-            DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_SEND);
+            DKFW_PROFILE_ITEM_END(PROFILER_CORE, time_0, PROFILE_ITEM_SEND);
         }
 
         busy = 0;
 
         if(g_pkt_distribute_core_num){
 
-            DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_RECV_QUEUE);
+            DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_QUEUE);
 
             for(i=0;i<g_pkt_distribute_core_num;i++){
                 rx_num = dkfw_rcv_pkt_from_process_core_q(seq, i, pkts_burst, MAX_RCV_PKTS);
@@ -594,36 +561,36 @@ static int packet_loop(int seq)
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
 
-                    pkt_dpdk_to_lwip_real(pkt, seq, profiler);
+                    pkt_dpdk_to_lwip_real(pkt, seq);
                 }
             }
 
             time_0 = rte_rdtsc();
 
             if(busy){
-                DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_RECV_QUEUE);
+                DKFW_PROFILE_ITEM_END(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_QUEUE);
             }
 
         }else{
 
-            DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_RECV_INTF);
+            DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_INTF);
 
             for(i=0;i<g_dkfw_interfaces_num;i++){
                 rx_num = dkfw_rcv_pkt_from_interface(i, seq, pkts_burst, MAX_RCV_PKTS);
-                if(rx_num < 1){
+                if(!rx_num){
                     continue;
                 }
                 busy = 1;
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
-                    if(get_app_core_seq(seq, pkt, &dst_core, profiler) < 0){
+                    if(unlikely(get_app_core_seq(seq, pkt, &dst_core) < 0)){
                         DISPATCH_STATS_NUM_INC(DISPATCH_STATS_UNKNOWN_CORE, seq);
                         rte_pktmbuf_free(pkt);
                         continue;
                     }
                     if(likely(dst_core >= 0)){
                         if(dst_core == seq){
-                            pkt_dpdk_to_lwip_real(pkt, seq, profiler);
+                            pkt_dpdk_to_lwip_real(pkt, seq);
                         }else{
                             if(unlikely(dkfw_send_pkt_to_process_core_q(dst_core, seq, pkt) < 0)){
                                 rte_pktmbuf_free(pkt);
@@ -641,7 +608,7 @@ static int packet_loop(int seq)
                         priv_dst = (MBUF_PRIV_T *)rte_mbuf_to_priv(clone);
                         rte_memcpy(priv_dst, priv_src, sizeof(MBUF_PRIV_T));
                         if(cind == seq){
-                            pkt_dpdk_to_lwip_real(clone, seq, profiler);
+                            pkt_dpdk_to_lwip_real(clone, seq);
                         }else{
                             if(unlikely(dkfw_send_pkt_to_process_core_q(cind, seq, clone) < 0)){
                                 rte_pktmbuf_free(clone);
@@ -655,37 +622,36 @@ static int packet_loop(int seq)
             time_0 = rte_rdtsc();
 
             if(busy){
-                DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_RECV_INTF);
+                DKFW_PROFILE_ITEM_END(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_INTF);
             }
 
             busy = 0;
-            DKFW_PROFILE_ITEM_START(profiler, time_0, PROFILE_ITEM_RECV_QUEUE);
+            DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_QUEUE);
 
             for(i=0;i<g_pkt_process_core_num;i++){
                 if(i == seq){
                     continue;
                 }
                 rx_num = dkfw_rcv_pkt_from_process_core_q(seq, i, pkts_burst, MAX_RCV_PKTS);
-                if(unlikely(!rx_num)){
+                if(!rx_num){
                     continue;
                 }
                 busy = 1;
                 for(pktind=0;pktind<rx_num;pktind++){
                     pkt = pkts_burst[pktind];
-
-                    pkt_dpdk_to_lwip_real(pkt, seq, profiler);
+                    pkt_dpdk_to_lwip_real(pkt, seq);
                 }
             }
 
             time_0 = rte_rdtsc();
 
             if(busy){
-                DKFW_PROFILE_ITEM_END(profiler, time_0, PROFILE_ITEM_RECV_QUEUE);
+                DKFW_PROFILE_ITEM_END(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_QUEUE);
             }
 
         }
 
-        DKFW_PROFILE_END(profiler, time_0);
+        DKFW_PROFILE_END(PROFILER_CORE, time_0);
 
         if(unlikely(cmd_exit)){
             break;
@@ -788,6 +754,7 @@ int main(int argc, char **argv)
     cJSON *json_item;
     cJSON *json_array_item;
     unsigned lcore_id = 0;
+    DKFW_PROFILE profile_tmp;
 
     if(!json_str){
         printf("no mem.\n");
@@ -910,6 +877,9 @@ int main(int argc, char **argv)
         ret = -1;
         goto err;
     }
+
+    dkfw_profile_init(&profile_tmp, PROFILE_ITEM_MAX, PROFILE_SINGLE_MAX);
+    PROFILER_CORE = &profile_tmp;
 
     if(init_networks(json_root) < 0){
         ret = -1;

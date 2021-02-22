@@ -50,6 +50,7 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     struct rte_udp_hdr *udphdr;
     int port, txq;
     int cnt;
+    err_t ret = ERR_OK;
 
 #if LWIP_TX_ZERO_COPY
     for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
@@ -60,12 +61,14 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
                 if(unlikely(!rte_pktmbuf_adj(mseq, (char *)lwip_pbuf->payload - data))){
                     GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
                     rte_pktmbuf_free(mseq);
-                    return ERR_MEM;
+                    ret = ERR_MEM;
+                    goto exit;
                 }
             }else if((char *)lwip_pbuf->payload < data){
                 GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
                 rte_pktmbuf_free(mseq);
-                return ERR_MEM;
+                ret = ERR_MEM;
+                goto exit;
             }
             if(!m){
                 m = mseq;
@@ -79,7 +82,8 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
             mseq = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
             if(!mseq) {
                 GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_EMPTY);
-                return ERR_MEM;
+                ret = ERR_MEM;
+                goto exit;
             }
             if(!m){
                 m = mseq;
@@ -88,7 +92,8 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
             if(!data) {
                 GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
                 rte_pktmbuf_free(m);
-                return ERR_MEM;
+                ret = ERR_MEM;
+                goto exit;
             }
             rte_memcpy(data, lwip_pbuf->payload, lwip_pbuf->len);
         }
@@ -98,16 +103,18 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     }
 #else
     m = rte_pktmbuf_alloc(pktmbuf_lwip2dpdk);
-    if(!m) {
+    if(unlikely(!m)){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_EMPTY);
-        return ERR_MEM;
+        ret = ERR_MEM;
+        goto exit;
     }
     for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
         data = rte_pktmbuf_append(m, lwip_pbuf->len);
-        if(!data) {
+        if(unlikely(!data)) {
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_TO_DPDK_MBUF_SMALL);
             rte_pktmbuf_free(m);
-            return ERR_MEM;
+            ret = ERR_MEM;
+            goto exit;
         }
         rte_memcpy(data, lwip_pbuf->payload, lwip_pbuf->len);
     }
@@ -127,7 +134,7 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
         iph = (struct rte_ipv4_hdr *)(data + sizeof(struct rte_ether_hdr));
         iph->hdr_checksum = 0;
 
-        if(iph->next_proto_id == IPPROTO_TCP){
+        if(likely(iph->next_proto_id == IPPROTO_TCP)){
             m->ol_flags |= PKT_TX_TCP_CKSUM;
             tcphdr = (struct rte_tcp_hdr *)((char *)iph + ((iph->version_ihl & 0x0f) << 2));
             tcphdr->cksum = rte_ipv4_phdr_cksum(iph, m->ol_flags);
@@ -186,7 +193,9 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     }
 #endif
 
-    return ERR_OK;
+exit:
+
+    return ret;
 }
 
 int interface_tx_buffer_flush(int seq)
