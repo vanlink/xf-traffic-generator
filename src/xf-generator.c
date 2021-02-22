@@ -460,7 +460,7 @@ static int packet_loop(int seq)
 
     g_elapsed_ms = time_0 * 1000ULL / tsc_per_sec;
 
-    lwip_init_per_core(seq);
+    lwip_init_per_core(seq, PROFILER_CORE);
 
     for(i=0;i<g_stream_cnt;i++){
         stream = g_streams[i];
