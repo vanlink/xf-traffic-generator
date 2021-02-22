@@ -7,7 +7,7 @@
 #include "dkfw_timer.h"
 #include "dkfw_profile.h"
 
-#define XF_DEBUG_PROFILE 1
+#define XF_DEBUG_PROFILE 0
 
 enum {
     PROFILE_ITEM_TIMER,
