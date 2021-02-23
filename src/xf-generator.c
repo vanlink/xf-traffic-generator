@@ -63,7 +63,8 @@ typedef struct _DPDK_MBUF_PRIV_TAG {
     uint32_t mbuf_hash;
 } MBUF_PRIV_T;
 
-#define MAX_RCV_PKTS 32
+#define MAX_ETH_RCV_PKTS 32
+#define MAX_Q_RCV_PKTS 16
 
 RTE_DEFINE_PER_LCORE(DKFW_PROFILE *, g_profiler);
 
@@ -328,7 +329,7 @@ static int dispatch_loop(int seq)
 {
     uint64_t time_0, elapsed_second_last = 0;
     int i, cind;
-    struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
+    struct rte_mbuf *pkts_burst[64];
     struct rte_mbuf *pkt, *clone;
     int rx_num, pktind;
     int dst_core = 0;
@@ -367,7 +368,7 @@ static int dispatch_loop(int seq)
         DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_INTF);
 
         for(i=0;i<g_dkfw_interfaces_num;i++){
-            rx_num = dkfw_rcv_pkt_from_interface(i, seq, pkts_burst, MAX_RCV_PKTS);
+            rx_num = dkfw_rcv_pkt_from_interface(i, seq, pkts_burst, MAX_ETH_RCV_PKTS);
             if(rx_num){
 
                 busy = 1;
@@ -438,7 +439,7 @@ static int packet_loop(int seq)
     uint64_t elapsed_ms_last = 0;
     uint64_t elapsed_second_last = 0;
     uint64_t time_0;
-    struct rte_mbuf *pkts_burst[MAX_RCV_PKTS];
+    struct rte_mbuf *pkts_burst[64];
     struct rte_mbuf *pkt;
     int rx_num, pktind;
     STREAM *stream;
@@ -553,7 +554,7 @@ static int packet_loop(int seq)
             DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_QUEUE);
 
             for(i=0;i<g_pkt_distribute_core_num;i++){
-                rx_num = dkfw_rcv_pkt_from_process_core_q(seq, i, pkts_burst, MAX_RCV_PKTS);
+                rx_num = dkfw_rcv_pkt_from_process_core_q(seq, i, pkts_burst, MAX_Q_RCV_PKTS);
                 if(unlikely(!rx_num)){
                     continue;
                 }
@@ -576,7 +577,7 @@ static int packet_loop(int seq)
             DKFW_PROFILE_ITEM_START(PROFILER_CORE, time_0, PROFILE_ITEM_RECV_INTF);
 
             for(i=0;i<g_dkfw_interfaces_num;i++){
-                rx_num = dkfw_rcv_pkt_from_interface(i, seq, pkts_burst, MAX_RCV_PKTS);
+                rx_num = dkfw_rcv_pkt_from_interface(i, seq, pkts_burst, MAX_ETH_RCV_PKTS);
                 if(!rx_num){
                     continue;
                 }
@@ -632,7 +633,7 @@ static int packet_loop(int seq)
                 if(i == seq){
                     continue;
                 }
-                rx_num = dkfw_rcv_pkt_from_process_core_q(seq, i, pkts_burst, MAX_RCV_PKTS);
+                rx_num = dkfw_rcv_pkt_from_process_core_q(seq, i, pkts_burst, MAX_Q_RCV_PKTS);
                 if(!rx_num){
                     continue;
                 }
