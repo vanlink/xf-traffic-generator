@@ -34,10 +34,8 @@ static inline err_t cb_connected(void *arg, struct altcp_pcb *tpcb, err_t err)
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_SUCC);
 
-    if(stream->stream_connected){
-        if(stream->stream_connected(session, stream, tpcb) < 0){
-            return ERR_ABRT;
-        }
+    if(unlikely(stream->stream_connected(session, stream, tpcb) < 0)){
+        return ERR_ABRT;
     }
 
     return ERR_OK;
@@ -48,10 +46,8 @@ static err_t cb_sent(void *arg, struct altcp_pcb *tpcb, u16_t len)
     SESSION *session = (SESSION *)arg;
     STREAM *stream = session->stream;
 
-    if(stream->stream_sent){
-        if(stream->stream_sent(session, stream, tpcb, len) < 0){
-            return ERR_ABRT;
-        }
+    if(unlikely(stream->stream_sent(session, stream, tpcb, len) < 0)){
+        return ERR_ABRT;
     }
 
     return ERR_OK;
@@ -67,26 +63,22 @@ static err_t cb_recv(void *arg, struct altcp_pcb *tpcb, struct pbuf *p, err_t er
 
     (void)err;
 
-    if(!p){
+    if(unlikely(!p)){
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_REMOTE_FIN);
-        if(stream->stream_remote_close){
-            if(stream->stream_remote_close(session, stream, tpcb) < 0){
-                return ERR_ABRT;
-            }
+        if(stream->stream_remote_close(session, stream, tpcb) < 0){
+            return ERR_ABRT;
         }
         return ERR_OK;
     }
 
-    if(stream->stream_recv){
-        pcurr = p;
-        while(pcurr){
-            altcp_recved(tpcb, pcurr->len);
-            if(stream->stream_recv(session, stream, tpcb, pcurr->payload, pcurr->len) < 0){
-                ret = ERR_ABRT;
-                goto exit;
-            }
-            pcurr = pcurr->next;
+    pcurr = p;
+    while(pcurr){
+        altcp_recved(tpcb, pcurr->len);
+        if(unlikely(stream->stream_recv(session, stream, tpcb, pcurr->payload, pcurr->len) < 0)){
+            ret = ERR_ABRT;
+            goto exit;
         }
+        pcurr = pcurr->next;
     }
 
 exit:
@@ -117,9 +109,7 @@ static void cb_err(void *arg, err_t err)
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_ERROR);
     }
 
-    if(stream->stream_err){
-        stream->stream_err(session, stream);
-    }
+    stream->stream_err(session, stream);
 }
 
 static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
@@ -137,7 +127,7 @@ static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
     }
 
     session = session_get();
-    if(!session){
+    if(unlikely(!session)){
         altcp_abort(pcb);
         return ERR_ABRT;
     }
@@ -151,9 +141,7 @@ static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
     altcp_poll(pcb, NULL, 10U);
     altcp_err(pcb, cb_err);
 
-    if(stream->stream_session_new){
-        stream->stream_session_new(session, stream, pcb);
-    }
+    stream->stream_session_new(session, stream, pcb);
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CONN_SUCC);
 
@@ -177,7 +165,7 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
         goto exit;
     }
 
-    if(stream->stream_is_tls){
+    if(unlikely(stream->stream_is_tls)){
         newpcb = altcp_tls_alloc(stream->tls_client_config, stream->stream_is_ipv6 ? IPADDR_TYPE_V6 : IPADDR_TYPE_V4);
     }else{
         newpcb = altcp_new(NULL);
@@ -192,7 +180,7 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
     session->stream = stream;
     session->simuser_ind = simuser_ind;
 
-    if(stream->stream_is_tls){
+    if(unlikely(stream->stream_is_tls)){
         pcb = newpcb->inner_conn ? ((struct altcp_pcb *)newpcb->inner_conn)->state : NULL;
     }else{
         pcb = (struct tcp_pcb *)newpcb->state;
@@ -204,9 +192,7 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
     altcp_poll(newpcb, NULL, 10U);
     altcp_err(newpcb, cb_err);
 
-    if(stream->stream_session_new){
-        stream->stream_session_new(session, stream, newpcb);
-    }
+    stream->stream_session_new(session, stream, newpcb);
 
     remote_addr = remote_address_get(stream->remote_address_ind, core, &port);
 
@@ -268,7 +254,7 @@ int protocol_common_send_simuser(STREAM *stream, int core, uint64_t tsc, uint64_
 
     (void)tsc;
 
-    if(simusers_dst == simusers_curr){
+    if(likely(simusers_dst == simusers_curr)){
         return 0;
     }
 

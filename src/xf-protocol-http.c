@@ -90,14 +90,14 @@ static int http_client_send_data(SESSION *session, STREAM *stream, void *pcb)
     err_t err;
 
     send_cnt = RTE_MIN(room, session->msg_len);
-    if(send_cnt){
+    if(likely(send_cnt)){
 #if LWIP_TX_ZERO_COPY
         err = altcp_write(pcb, session->session_msg, session->session_msg_iova, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
         session->session_msg_iova += send_cnt;
 #else
         err = altcp_write(pcb, session->session_msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
 #endif
-        if (err !=  ERR_OK) {
+        if (unlikely(err != ERR_OK)) {
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
         }
@@ -121,14 +121,14 @@ static int http_server_send_data(SESSION *session, STREAM *stream, void *pcb)
     err_t err;
 
     send_cnt = RTE_MIN(room, session->msg_len);
-    if(send_cnt){
+    if(likely(send_cnt)){
 #if LWIP_TX_ZERO_COPY
         err = altcp_write(pcb, session->session_msg, session->session_msg_iova, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
         session->session_msg_iova += send_cnt;
 #else
         err = altcp_write(pcb, session->session_msg, send_cnt, (session->msg_len == send_cnt) ? 0 : TCP_WRITE_FLAG_MORE);
 #endif
-        if (err !=  ERR_OK) {
+        if (unlikely(err != ERR_OK)) {
             GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_WRITE_FAIL);
             return -1;
         }
@@ -183,7 +183,7 @@ static int llhttp_on_request_complete(llhttp_t *llhttp)
     session->proto_state = HTTP_STATE_RSP;
 
     http_session_msg_next(session, stream);
-    if(http_server_send_data(session, stream, pcb) < 0){
+    if(unlikely(http_server_send_data(session, stream, pcb) < 0)){
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
         http_close_session(session, pcb, 1);
     }
@@ -261,7 +261,7 @@ static int protocol_http_client_sent(SESSION *session, STREAM *stream, void *pcb
 {
     (void)sent_len;
 
-    if(session->proto_state != HTTP_STATE_REQ){
+    if(unlikely(session->proto_state != HTTP_STATE_REQ)){
         return 0;
     }
 
@@ -284,12 +284,12 @@ static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb
     (void)stream;
     (void)pcb;
 
-    if(session->proto_state != HTTP_STATE_RSP){
+    if(unlikely(session->proto_state != HTTP_STATE_RSP)){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_DATA_EARLY);
         return -1;
     }
 
-    if(HPE_OK != llhttp_execute(&session->http_parser, data, datalen)){
+    if(unlikely(HPE_OK != llhttp_execute(&session->http_parser, data, datalen))){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL);
         return -1;
     }
@@ -330,7 +330,7 @@ static int protocol_http_server_sent(SESSION *session, STREAM *stream, void *pcb
     (void)pcb;
     (void)sent_len;
 
-    if(session->proto_state != HTTP_STATE_RSP){
+    if(unlikely(session->proto_state != HTTP_STATE_RSP)){
         return 0;
     }
 
@@ -349,12 +349,12 @@ static int protocol_http_server_recv(SESSION *session, STREAM *stream, void *pcb
     (void)stream;
     (void)pcb;
 
-    if(session->proto_state != HTTP_STATE_REQ){
+    if(unlikely(session->proto_state != HTTP_STATE_REQ)){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_DATA_EARLY);
         return -1;
     }
 
-    if(HPE_OK != llhttp_execute(&session->http_parser, data, datalen)){
+    if(unlikely(HPE_OK != llhttp_execute(&session->http_parser, data, datalen))){
         GENERATOR_STATS_NUM_INC(GENERATOR_STATS_PROTOCOL_HTTP_PARSE_FAIL);
         return -1;
     }
