@@ -1,0 +1,116 @@
+{
+    "cores-process": [1,21],
+    "cores-dispatch": [],
+
+    "interfaces": [
+        "0000:03:00.0"
+    ],
+
+    "mem_static_pools": {
+        "pcb-altcp": 2000000,
+        "pcb-tcp-listen": 2048,
+        "pcb-tcp": 2000000,
+        "tcp-seg": 500000,
+        "arp-q": 2048,
+        "nd6-q": 2048,
+        "pbuf-pool": 65536,
+        "pbuf": 200000,
+        "sys-timeout": 2048
+    },
+
+    "mem_step_pools": [
+        {"size":2048, "cnt":200000},
+        {"size":4096, "cnt":65536},
+        {"size":8192, "cnt":8192},
+        {"size":16384, "cnt":2048},
+        {"size":32768, "cnt":2048},
+        {"size":65536, "cnt":2048}
+    ],
+
+    "sessions": 2000000,
+
+    "networks": [
+        {
+            "interface_ind": 0,
+            "start": "99.99.99.1",
+            "end": "99.99.99.1",
+            "mask": "255.255.255.0",
+            "gw": "99.99.99.254",
+            "hashsize": 1024
+        },
+        {
+            "interface_ind": 0,
+            "start": "192.168.1.1",
+            "end": "192.168.1.200",
+            "mask": "255.255.255.0",
+            "gw": "192.168.1.254",
+            "hashsize": 8192
+        }
+    ],
+
+    "local_addresses":[
+        {
+            "type":"port-rr",
+            "addresses":[
+                { "start":"192.168.1.1", "end":"192.168.1.200" }
+            ]
+        }
+    ],
+    
+    "remote_addresses":[
+        {
+            "addresses":[
+                { "start":"192.168.1.254", "end":"192.168.1.254", "port":80, "weight":1 }
+            ]
+        }
+    ],
+
+    "http_messages":[
+        {
+            "messages":[
+                { "path":"/req.txt"}
+            ]
+        }
+    ],
+
+    "certificates":[
+        {
+            "certificate": "/etc/nginx/crt.txt",
+            "key": "/etc/nginx/key.txt"
+        }
+    ],
+
+    "streams":[
+        {
+            "type":"httpclient",
+            "local_address_ind":0,
+            "remote_address_ind":0,
+            "http_message_ind":0,
+            "tls":0,
+            "ciphersuites": [
+                "TLS-RSA-WITH-AES-256-CBC-SHA256"
+            ],
+
+            "cps":[
+                {
+                    "start": 0,
+                    "end": 130000,
+                    "time": 30
+                },
+                {
+                    "start": 130000,
+                    "time": 0
+                }
+            ],
+            "rpc":1,
+            "ipr":0,
+
+            "close_with_rst": 0,
+            "session_timeout":5
+        }
+    ],
+
+    "capture":{
+        "enabled":0
+    }
+}
