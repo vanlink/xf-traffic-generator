@@ -150,7 +150,7 @@ static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
 
 int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
 {
-    SESSION *session = session_get();
+    SESSION *session;
     struct altcp_pcb *newpcb = NULL;
     ip_addr_t *remote_addr;
     err_t err;
@@ -160,20 +160,33 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
     int port;
     int i, force_next;
 
+#if 0
+    DKFW_PROFILE_SINGLE_START(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_B);
+#endif
+    session = session_get();
+#if 0
+    DKFW_PROFILE_SINGLE_END(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_B);
+#endif
     if(unlikely(!session)){
         ret = -1;
-        goto exit;
+        goto err;
     }
 
+#if 0
+    DKFW_PROFILE_SINGLE_START(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
     if(unlikely(stream->stream_is_tls)){
         newpcb = altcp_tls_alloc(stream->tls_client_config, stream->stream_is_ipv6 ? IPADDR_TYPE_V6 : IPADDR_TYPE_V4);
     }else{
         newpcb = altcp_new(NULL);
     }
-    
+#if 0
+    DKFW_PROFILE_SINGLE_END(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
+
     if(unlikely(!newpcb)){
         ret = -1;
-        goto exit;
+        goto err;
     }
 
     session->pcb = newpcb;
@@ -193,16 +206,27 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
     altcp_err(newpcb, cb_err);
 
     stream->stream_session_new(session, stream, newpcb);
-
     remote_addr = remote_address_get(stream->remote_address_ind, core, &port);
 
     force_next = 0;
     for(i=0;i<stream->local_address_in_pool_cnt;i++){
+#if 0
+        DKFW_PROFILE_SINGLE_START(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_D);
+#endif
         net_if = local_address_get(stream->local_address_ind, core, force_next);
         tcp_bind_netif(pcb, net_if);
+#if 0
+        DKFW_PROFILE_SINGLE_END(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_D);
+#endif
+#if 0
+        DKFW_PROFILE_SINGLE_START(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_E);
+#endif
         err = altcp_connect(newpcb, remote_addr, port, cb_connected);
+#if 0
+        DKFW_PROFILE_SINGLE_END(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_E);
+#endif
         if (likely(err == ERR_OK)) {
-            return ret;
+            goto exit;
         }
         if (err != ERR_USE) {
             break;
@@ -214,19 +238,20 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
 
     ret = -1;
 
-exit:
+err:
 
     if(newpcb){
         altcp_sent(newpcb, NULL);
         altcp_recv(newpcb, NULL);
         altcp_err(newpcb, NULL);
-
         altcp_abort(newpcb);
     }
 
     if(session){
         session_free(session);
     }
+
+exit:
 
     return ret;
 }

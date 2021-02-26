@@ -118,7 +118,15 @@ int init_sessions(uint64_t cnt)
 
 SESSION *session_get(void)
 {
-    SESSION *sess = (SESSION *)dkfw_mempool_alloc(sessions[LWIP_MY_CPUID]);
+    SESSION *sess;
+
+#if 0
+    DKFW_PROFILE_SINGLE_START(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_B);
+#endif
+    sess = (SESSION *)dkfw_mempool_alloc(sessions[LWIP_MY_CPUID]);
+#if 0
+    DKFW_PROFILE_SINGLE_END(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_B);
+#endif
 
     if(!sess) {
         GENERATOR_STATS_RESPOOL_ALLOC_FAIL(GENERATOR_STATS_SESSION);
@@ -127,7 +135,13 @@ SESSION *session_get(void)
 
     GENERATOR_STATS_RESPOOL_ALLOC_SUCC(GENERATOR_STATS_SESSION);
 
+#if 0
+    DKFW_PROFILE_SINGLE_START(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
     bzero(sess, sizeof(SESSION));
+#if 0
+    DKFW_PROFILE_SINGLE_END(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_C);
+#endif
 
     return sess;
 }
@@ -136,7 +150,14 @@ void session_free(SESSION *sess)
 {
     GENERATOR_STATS_RESPOOL_FREE(GENERATOR_STATS_SESSION);
 
+#if 0
+    DKFW_PROFILE_SINGLE_START(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_D);
+#endif
     dkfw_mempool_free((void *)sess);
+#if 0
+    DKFW_PROFILE_SINGLE_END(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_D);
+#endif
+
 }
 
 #endif

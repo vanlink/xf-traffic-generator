@@ -52,6 +52,10 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     int cnt;
     err_t ret = ERR_OK;
 
+#if 0
+    DKFW_PROFILE_SINGLE_START(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_B);
+#endif
+
 #if LWIP_TX_ZERO_COPY
     for(lwip_pbuf = p; lwip_pbuf; lwip_pbuf = lwip_pbuf->next) {
         if(lwip_pbuf->pbuf_dpdk_mbuf){
@@ -194,6 +198,10 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
 #endif
 
 exit:
+
+#if 0
+    DKFW_PROFILE_SINGLE_END(PROFILER_CORE, rte_rdtsc(), PROFILE_SINGLE_B);
+#endif
 
     return ret;
 }
