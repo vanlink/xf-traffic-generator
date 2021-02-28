@@ -17,15 +17,19 @@
 #include "xf-sharedmem.h"
 
 static int to_exit = 0;
+static int to_start = 0;
+static int to_stop = 0;
 
 static char unique[64] = {0};
 
-static const char short_options[] = "u:e";
+static const char short_options[] = "u:ers";
 
 static const struct option long_options[] = {
     {"unique", required_argument, NULL, 'u'},
 
     {"exit", no_argument, NULL, 'e'},
+    {"start", no_argument, NULL, 'r'},
+    {"stop", no_argument, NULL, 's'},
 
     { 0, 0, 0, 0},
 };
@@ -46,6 +50,12 @@ static int cmd_parse_args(int argc, char **argv)
                 break;
             case 'e':
                 to_exit = 1;
+                break;
+            case 'r':
+                to_start = 1;
+                break;
+            case 's':
+                to_stop = 1;
                 break;
             default:
                 break;
@@ -82,7 +92,13 @@ int main(int argc, char **argv)
     if(to_exit){
         printf("command exit.\n");
         g_sm->cmd_exit = 1;
-    }else{
+    }else if(to_stop){
+        printf("command stop.\n");
+        g_sm->cmd_stop = 1;
+    }else if(to_start){
+        printf("command start.\n");
+        g_sm->cmd_start = 1;
+    }else {
         printf("unknown cmd.\n");
         return -1;
     }

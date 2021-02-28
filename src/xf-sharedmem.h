@@ -33,7 +33,9 @@ typedef struct _SHARED_MEM_TAG {
     DKFW_PROFILE profile_dispatch[MAX_CORES_PER_ROLE];
 
     int cmd_exit;
+
     int cmd_stop;
+    int cmd_start;
 
 } SHARED_MEM_T;
 

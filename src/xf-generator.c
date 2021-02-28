@@ -93,7 +93,7 @@ SHARED_MEM_T *g_generator_shared_mem = NULL;
 
 tvec_base_t *g_generator_timer_bases;
 
-static int cmd_exit = 0;
+static int cmd_do_exit = 0;
 
 static int cmd_parse_args(int argc, char **argv)
 {
@@ -413,7 +413,7 @@ static int dispatch_loop(int seq)
         
         DKFW_PROFILE_END(PROFILER_CORE, time_0);
 
-        if(unlikely(cmd_exit)){
+        if(unlikely(cmd_do_exit)){
             break;
         }
     }
@@ -421,12 +421,27 @@ static int dispatch_loop(int seq)
     return 0;
 }
 
-static __rte_always_inline void packet_second_timer(int seq, uint64_t seconds)
+static inline void packet_second_timer(int seq, uint64_t seconds)
 {
     (void)seconds;
 
     if(seq == 0){
-        cmd_exit = g_generator_shared_mem->cmd_exit;
+        if(g_generator_shared_mem->cmd_exit){
+            printf("rcv cmd [exit]\n");
+            fflush(stdout);
+            g_generator_shared_mem->cmd_exit = 0;
+            cmd_do_exit = g_generator_shared_mem->cmd_exit;
+        }else if(g_generator_shared_mem->cmd_stop){
+            printf("rcv cmd [stop]\n");
+            fflush(stdout);
+            g_generator_shared_mem->cmd_stop = 0;
+            streams_stop();
+        }else if(g_generator_shared_mem->cmd_start){
+            printf("rcv cmd [start]\n");
+            fflush(stdout);
+            g_generator_shared_mem->cmd_start = 0;
+            streams_start();
+        }
     }
 }
 
@@ -654,7 +669,7 @@ static int packet_loop(int seq)
 
         DKFW_PROFILE_END(PROFILER_CORE, time_0);
 
-        if(unlikely(cmd_exit)){
+        if(unlikely(cmd_do_exit)){
             break;
         }
     }

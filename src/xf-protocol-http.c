@@ -603,6 +603,8 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     }else{
         stream->stream_send = protocol_common_send_cps;
     }
+    stream->stream_send_back = stream->stream_send;
+
     stream->stream_session_new = protocol_http_client_session_new;
     stream->stream_connected = protocol_http_client_connecned;
     stream->stream_sent = protocol_http_client_sent;

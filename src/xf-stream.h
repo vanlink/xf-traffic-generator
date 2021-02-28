@@ -85,6 +85,7 @@ typedef struct _STREAM_t {
     DKFW_STATS *stream_stat;
 
     STREAM_SEND_FUNC stream_send;
+    STREAM_SEND_FUNC stream_send_back;
     STREAM_SESSION_NEW_FUNC stream_session_new;
     STREAM_CONNECTED_FUNC stream_connected;
     STREAM_SENT_FUNC stream_sent;
@@ -100,6 +101,9 @@ extern int g_stream_cnt;
 extern STREAM *g_streams[STREAM_CNT_MAX];
 
 extern int init_streams(cJSON *json_root);
+
+extern int streams_stop(void);
+extern int streams_start(void);
 
 #define STREAM_STATS_NUM_INC(stream,id)             DKFW_STATS_CNT_INCR(stream->stream_stat,id,RTE_PER_LCORE(g_cpu_id))
 

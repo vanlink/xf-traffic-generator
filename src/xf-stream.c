@@ -223,3 +223,49 @@ int init_streams(cJSON *json_root)
     return 0;
 }
 
+static int stream_stop_one(STREAM *stream)
+{
+    if(stream->stream_send_back && stream->stream_send){
+        stream->stream_send = NULL;
+
+        if(stream->stream_is_simuser){
+            
+        }
+    }
+
+    return 0;
+}
+
+static int stream_start_one(STREAM *stream)
+{
+    if(stream->stream_send_back && !stream->stream_send){
+        stream->stream_send = stream->stream_send_back;
+    }
+
+    return 0;
+}
+
+int streams_stop(void)
+{
+    int i;
+    STREAM *stream;
+
+    for(i=0;i<g_stream_cnt;i++){
+        stream = g_streams[i];
+        stream_stop_one(stream);
+    }
+    return 0;
+}
+
+int streams_start(void)
+{
+    int i;
+    STREAM *stream;
+
+    for(i=0;i<g_stream_cnt;i++){
+        stream = g_streams[i];
+        stream_start_one(stream);
+    }
+    return 0;
+}
+
