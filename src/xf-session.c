@@ -54,7 +54,7 @@ int init_sessions(uint64_t cnt)
     for(i=0;i<g_pkt_process_core_num;i++){
         sprintf(buff, "sessioncore%d", i);
         sessions[i] = rte_mempool_create(buff, cnt_core, sizeof(SESSION),
-                                                    512,
+                                                    cnt_core >= 2048 ? 512 : 64,
                                                     0, NULL, NULL, NULL, NULL,
                                                     SOCKET_ID_ANY, MEMPOOL_F_SP_PUT | MEMPOOL_F_SC_GET | MEMPOOL_F_NO_IOVA_CONTIG);
         if(!sessions[i]){

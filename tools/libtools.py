@@ -16,6 +16,8 @@ MAIN_EXEC_NAME = "./xf-generator-main"
 DAEMON_EXEC_NAME = "./xf-generator-daemon"
 DAEMON_PY_NAME = "../tools/xf-daemon.py"
 
+CONF_FILE_NAME = "conf.json"
+
 MAIN_EXEC_OUT = "xf-generator-main.out"
 DAEMON_EXEC_OUT = "xf-generator-daemon.out"
 DAEMON_PY_OUT = "xf-daemon-py.out"

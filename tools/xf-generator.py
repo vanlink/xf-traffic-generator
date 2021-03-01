@@ -14,6 +14,74 @@ from libtools import *
 UNIQUE = "xxxxxx"
 CONF = "./conf.json"
 
+def fill_conf_json(confjson):
+    clientcnt = 0
+    servercnt = 0
+    cpsall = 0
+    concurrall = 0
+
+    for stream in confjson.get("streams", []):
+        if stream["type"].lower() == "httpclient":
+            clientcnt += 1
+            rpc = stream.get("rpc", 1)
+            rpc = rpc or 1
+            ipr = stream.get("ipr", 0)
+            cpsconf = stream.get("cps")
+            cpsone = 0
+            if isinstance(cpsconf, int):
+                cpsone = cpsconf
+            elif isinstance(cpsconf, list):
+                for cpsstep in cpsconf:
+                    if cpsstep.get("start", 0) > cpsone:
+                        cpsone = cpsstep.get("start", 0)
+                    if cpsstep.get("end", 0) > cpsone:
+                        cpsone = cpsstep.get("end", 0)
+            cpsall += cpsone
+            if ipr:
+                concurrall += rpc * ipr * cpsone
+        elif stream["type"].lower() == "httpserver":
+            servercnt += 1
+
+    if clientcnt and servercnt:
+        cpsall = cpsall * 105 // 100
+        concurrall *= 2
+        concurrall = concurrall * 105 // 100
+        if concurrall < 4096:
+            concurrall = 4096
+    elif clientcnt:
+        cpsall = cpsall * 105 // 100
+        concurrall = concurrall * 105 // 100
+        if concurrall < 4096:
+            concurrall = 4096
+    else:
+        concurrall = confjson.get("sessions", 0)
+        concurrall = concurrall * 105 // 100
+        if concurrall < 65536:
+            concurrall = 65536
+
+    stpool = confjson.setdefault("mem_static_pools", {})
+    stpool.setdefault("pcb-altcp", concurrall)
+    stpool.setdefault("pcb-tcp", concurrall + 2 * cpsall)  # 2msl * cps
+    stpool.setdefault("tcp-seg", 16384)
+    stpool.setdefault("pbuf", 16384)
+    stpool.setdefault("pbuf-pool", 4096)
+    stpool.setdefault("pcb-tcp-listen", 4096)
+    stpool.setdefault("arp-q", 2048)
+    stpool.setdefault("nd6-q", 2048)
+    stpool.setdefault("sys-timeout", 2048)
+
+    confjson.setdefault("sessions", concurrall)
+
+    if "mem_step_pools" not in confjson:
+        confjson["mem_step_pools"] = [
+            {"size":2048, "cnt":16384},
+            {"size":4096, "cnt":4096},
+            {"size":8192, "cnt":2048},
+            {"size":16384, "cnt":1024},
+            {"size":32768, "cnt":512},
+            {"size":65536, "cnt":256}
+        ]
+
 # ------------------------------ main ------------------------------
 if __name__ != '__main__':
     sys.exit(0)
@@ -63,8 +131,25 @@ print("DIR_UNIQUE is [%s]" % (DIR_UNIQUE))
 os.system("rm -rf %s" % (DIR_UNIQUE))
 os.system("mkdir -p %s" % (DIR_UNIQUE))
 
+conjson = None
+with open(CONF, "r") as f:
+    try:
+        conjson = json.load(f)
+    except:
+        pass
+if not conjson:
+    print("invalid config json file.")
+    sys.exit(-1)
+fill_conf_json(conjson)
+conffinal = os.path.join(DIR_UNIQUE, CONF_FILE_NAME)
+with open(conffinal, "w") as f:
+    json.dump(conjson, f, indent=4)
+if not os.path.isfile(conffinal):
+    print("can not gen config json file.")
+    sys.exit(-1)
+
 outfile = os.path.join(DIR_UNIQUE, MAIN_EXEC_OUT)
-cmd = "nohup %s --unique=%s -c %s > %s 2>&1 &" % (MAIN_EXEC_NAME, UNIQUE, CONF, outfile)
+cmd = "nohup %s --unique=%s -c %s > %s 2>&1 &" % (MAIN_EXEC_NAME, UNIQUE, conffinal, outfile)
 print("====== start main =======")
 print(cmd)
 os.system(cmd)

@@ -575,7 +575,7 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     if(json){
         stream->session_timeout_ms = json->valueint * 1000;
     }else{
-        stream->session_timeout_ms = (stream->rpc * stream->ipr + 3) * 1000;
+        stream->session_timeout_ms = (stream->rpc * stream->ipr + 5) * 1000;
     }
 
     json = cJSON_GetObjectItem(json_root, "close_with_rst");
