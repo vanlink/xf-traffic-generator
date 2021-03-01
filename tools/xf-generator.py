@@ -15,6 +15,7 @@ UNIQUE = "xxxxxx"
 CONF = "./conf.json"
 
 def fill_conf_json(confjson):
+    simusercnt = 0
     clientcnt = 0
     servercnt = 0
     cpsall = 0
@@ -26,6 +27,9 @@ def fill_conf_json(confjson):
             rpc = stream.get("rpc", 1)
             rpc = rpc or 1
             ipr = stream.get("ipr", 0)
+            if "simuser" in stream:
+                simusercnt += 1
+                continue
             cpsconf = stream.get("cps")
             cpsone = 0
             if isinstance(cpsconf, int):
@@ -58,6 +62,9 @@ def fill_conf_json(confjson):
         concurrall = concurrall * 105 // 100
         if concurrall < 65536:
             concurrall = 65536
+
+    if simusercnt:
+        cpsall += 1000000 * 105 // 100
 
     stpool = confjson.setdefault("mem_static_pools", {})
     stpool.setdefault("pcb-altcp", concurrall)
