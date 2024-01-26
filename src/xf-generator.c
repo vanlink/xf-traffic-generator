@@ -931,9 +931,9 @@ int main(int argc, char **argv)
 
     printf("config done.\n");
 
-    rte_eal_mp_remote_launch(main_loop, NULL, CALL_MASTER);
+    rte_eal_mp_remote_launch(main_loop, NULL, CALL_MAIN);
 
-    RTE_LCORE_FOREACH_SLAVE(lcore_id) {
+    RTE_LCORE_FOREACH_WORKER(lcore_id) {
         if (rte_eal_wait_lcore(lcore_id) < 0) {
            break;
         }

@@ -131,7 +131,9 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
     ethhdr = (struct rte_ether_hdr *)data;
 
     if(likely(ntohs(ethhdr->ether_type) == RTE_ETHER_TYPE_IPV4)){
-        m->ol_flags |= (PKT_TX_IP_CKSUM | PKT_TX_IPV4);
+        // m->ol_flags |= (PKT_TX_IP_CKSUM | PKT_TX_IPV4);
+        m->ol_flags |= (RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_IPV4);
+        
         m->l2_len = sizeof(struct rte_ether_hdr);
         m->l3_len = sizeof(struct rte_ipv4_hdr);
         
@@ -139,27 +141,30 @@ static err_t pkt_lwip_to_dpdk(struct netif *intf, struct pbuf *p)
         iph->hdr_checksum = 0;
 
         if(likely(iph->next_proto_id == IPPROTO_TCP)){
-            m->ol_flags |= PKT_TX_TCP_CKSUM;
+            // m->ol_flags |= PKT_TX_TCP_CKSUM;
+            m->ol_flags |=RTE_MBUF_F_TX_TCP_CKSUM;
             tcphdr = (struct rte_tcp_hdr *)((char *)iph + ((iph->version_ihl & 0x0f) << 2));
             tcphdr->cksum = rte_ipv4_phdr_cksum(iph, m->ol_flags);
         }else if(iph->next_proto_id == IPPROTO_UDP){
-            m->ol_flags |= PKT_TX_UDP_CKSUM;
+            // m->ol_flags |= PKT_TX_UDP_CKSUM;
+            m->ol_flags |= RTE_MBUF_F_TX_UDP_CKSUM;
             udphdr = (struct rte_udp_hdr *)((char *)iph + ((iph->version_ihl & 0x0f) << 2));
             udphdr->dgram_cksum = rte_ipv4_phdr_cksum(iph, m->ol_flags);
         }
     }else if(ntohs(ethhdr->ether_type) == RTE_ETHER_TYPE_ARP){
     }else if(ntohs(ethhdr->ether_type) == RTE_ETHER_TYPE_IPV6){
-        m->ol_flags |= PKT_TX_IPV6;
+        // m->ol_flags |= PKT_TX_IPV6;
+        m->ol_flags |= RTE_MBUF_F_TX_IPV6;
         m->l2_len = sizeof(struct rte_ether_hdr);
         m->l3_len = sizeof(struct rte_ipv6_hdr);
 
         ipv6h = (struct rte_ipv6_hdr *)(data + sizeof(struct rte_ether_hdr));
         if(ipv6h->proto == IPPROTO_TCP){
-            m->ol_flags |= PKT_TX_TCP_CKSUM;
+            m->ol_flags |= RTE_MBUF_F_TX_TCP_CKSUM;
             tcphdr = (struct rte_tcp_hdr *)((char *)ipv6h + sizeof(struct rte_ipv6_hdr));
             tcphdr->cksum = rte_ipv6_phdr_cksum(ipv6h, m->ol_flags);
         }else if(ipv6h->proto == IPPROTO_UDP){
-            m->ol_flags |= PKT_TX_UDP_CKSUM;
+            m->ol_flags |= RTE_MBUF_F_TX_UDP_CKSUM;
             udphdr = (struct rte_udp_hdr *)((char *)ipv6h + sizeof(struct rte_ipv6_hdr));
             udphdr->dgram_cksum = rte_ipv6_phdr_cksum(ipv6h, m->ol_flags);
         }
