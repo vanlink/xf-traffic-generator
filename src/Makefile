@@ -2,11 +2,15 @@ LLHTTP_DIR=llhttp
 
 PKGCONF=pkg-config
 
-LIBS = $(shell $(PKGCONF) --libs libdpdk) -lrt -lm -ldl -lcrypto -pthread -lnuma -lcjson -lpcap ${MBEDTLS_SDK}/library/libmbedtls.a ${MBEDTLS_SDK}/library/libmbedcrypto.a ${MBEDTLS_SDK}/library/libmbedx509.a -fpic
+LIBS = $(shell $(PKGCONF) --libs libdpdk) -lrt -lm -ldl -pthread -lnuma -lcjson -lpcap \
+       ${MBEDTLS_SDK}/library/libmbedtls.a ${MBEDTLS_SDK}/library/libmbedcrypto.a ${MBEDTLS_SDK}/library/libmbedx509.a -fpic
+
 INCLUDE = -I${DKFW_SDK}/include -I${MBEDTLS_SDK}/include -I${LWIP_SDK}/include -I${LLHTTP_DIR}/include
+
 DEPS = -Wall -Wextra $(shell $(PKGCONF) --cflags libdpdk) -march=native -DALLOW_EXPERIMENTAL_API
+
 SLIBS = ${LWIP_SDK}/liblwipdpdk.a ${DKFW_SDK}/libdkfw.a \
-        ${LLHTTP_DIR}/libllhttp.a
+        ${LLHTTP_DIR}/libllhttp.a ${OPENSSL_SDK}/libssl.a ${OPENSSL_SDK}/libcrypto.a
 
 ifeq ($(D),1)
 OPTIMIZE=-O0
