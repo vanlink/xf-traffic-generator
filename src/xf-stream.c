@@ -24,7 +24,9 @@
 
 #include "cjson/cJSON.h"
 
+#if LWIP_ALTCP_TLS_MBEDTLS
 #include "mbedtls/ssl_ciphersuites.h"
+#endif
 
 #include "lwip/arch.h"
 #include "lwip/init.h"
@@ -75,6 +77,7 @@ static int init_stream_stats(DKFW_STATS *stats)
 
 static int init_streams_tls_ciphersuites(STREAM *stream, cJSON *json_root)
 {
+#if LWIP_ALTCP_TLS_MBEDTLS
     cJSON *json_array_item;
     const mbedtls_ssl_ciphersuite_t *cs;
     int ind = 0;
@@ -100,7 +103,7 @@ static int init_streams_tls_ciphersuites(STREAM *stream, cJSON *json_root)
         }
         stream->tls_ciphersuites[ind] = cs->id;
     }
-
+#endif
     return 0;
 }
 
@@ -114,8 +117,9 @@ static int init_streams_tls_client(STREAM *stream, cJSON *json_root)
     if(init_streams_tls_ciphersuites(stream, json_root) < 0){
         return -1;
     }
+#if LWIP_ALTCP_TLS_MBEDTLS
     altcp_tls_ssl_conf_ciphersuites(stream->tls_client_config, stream->tls_ciphersuites);
-
+#endif
     return 0;
 }
 
@@ -147,8 +151,10 @@ static int init_streams_tls_server(STREAM *stream, cJSON *json_root)
     if(init_streams_tls_ciphersuites(stream, json_root) < 0){
         return -1;
     }
-    altcp_tls_ssl_conf_ciphersuites(stream->tls_server_config, stream->tls_ciphersuites);
 
+#if LWIP_ALTCP_TLS_MBEDTLS
+    altcp_tls_ssl_conf_ciphersuites(stream->tls_server_config, stream->tls_ciphersuites);
+#endif
     return 0;
 }
 

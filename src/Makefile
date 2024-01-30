@@ -5,7 +5,7 @@ PKGCONF=pkg-config
 LIBS = $(shell $(PKGCONF) --libs libdpdk) -lrt -lm -ldl -pthread -lnuma -lcjson -lpcap \
        ${MBEDTLS_SDK}/library/libmbedtls.a ${MBEDTLS_SDK}/library/libmbedcrypto.a ${MBEDTLS_SDK}/library/libmbedx509.a -fpic
 
-INCLUDE = -I${DKFW_SDK}/include -I${MBEDTLS_SDK}/include -I${LWIP_SDK}/include -I${LLHTTP_DIR}/include
+INCLUDE = -I${DKFW_SDK}/include -I${MBEDTLS_SDK}/include -I${LWIP_SDK}/include -I${LLHTTP_DIR}/include -I${OPENSSL_SDK}/include
 
 DEPS = -Wall -Wextra $(shell $(PKGCONF) --cflags libdpdk) -march=native -DALLOW_EXPERIMENTAL_API
 
