@@ -126,9 +126,9 @@ static int init_streams_tls_client(STREAM *stream, cJSON *json_root)
 static int init_streams_tls_server(STREAM *stream, cJSON *json_root)
 {
     cJSON *json = cJSON_GetObjectItem(json_root, "certificate_ind");
-    char *cert;
+    char *cert, *certpath;
     int cert_len;
-    char *key;
+    char *key, *keypath;
     int key_len;
     char *password;
 
@@ -137,12 +137,17 @@ static int init_streams_tls_server(STREAM *stream, cJSON *json_root)
         return -1;
     }
 
-    if(certificate_get(json->valueint, &cert, &cert_len, &key, &key_len, &password) < 0){
+    if(certificate_get(json->valueint, &cert, &cert_len, &key, &key_len, &password, &certpath, &keypath) < 0){
         printf("certificate_ind get err.\n");
         return -1;
     }
 
+#if LWIP_ALTCP_TLS_MBEDTLS
     stream->tls_server_config = altcp_tls_create_config_server_privkey_cert((u8_t *)key, key_len + 1, NULL, 0, (u8_t *)cert, cert_len + 1);
+#else
+    stream->tls_server_config = altcp_tls_create_config_server_privkey_cert((u8_t *)keypath, 0, NULL, 0, (u8_t *)certpath, 0);
+#endif
+
     if(!stream->tls_server_config){
         printf("create ssl server config fail.\n");
         return -1;

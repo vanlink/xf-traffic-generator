@@ -18,9 +18,11 @@
 typedef struct _CERTIFICATE_t {
     char *certificate;
     int certificate_len;
+    char certificate_path[256];
 
     char *key;
     int key_len;
+    char key_path[256];
 
     char password[128];
 } CERTIFICATE;
@@ -45,6 +47,7 @@ int init_certificate(cJSON *json_root)
             printf("no certificate file.\n");
             return -1;
         }
+        strncpy(cert->certificate_path, json->valuestring, sizeof(cert->certificate_path));
         cert->certificate = read_file_to_buff(json->valuestring, &cert->certificate_len);
         if(!cert->certificate){
             printf("can not open certificate file [%s].\n", json->valuestring);
@@ -56,6 +59,7 @@ int init_certificate(cJSON *json_root)
             printf("no key file.\n");
             return -1;
         }
+        strncpy(cert->key_path, json->valuestring, sizeof(cert->key_path));
         cert->key = read_file_to_buff(json->valuestring, &cert->key_len);
         if(!cert->key){
             printf("can not open key file [%s].\n", json->valuestring);
@@ -79,7 +83,7 @@ int init_certificate(cJSON *json_root)
     return 0;
 }
 
-int certificate_get(int ind, char **pcert, int *cert_len, char **pkey, int *key_len, char **ppassword)
+int certificate_get(int ind, char **pcert, int *cert_len, char **pkey, int *key_len, char **ppassword, char **pcert_path, char **pkey_path)
 {
     CERTIFICATE *cert;
 
@@ -94,6 +98,9 @@ int certificate_get(int ind, char **pcert, int *cert_len, char **pkey, int *key_
     *pkey = cert->key;
     *key_len = cert->key_len;
     *ppassword = cert->password;
+
+    *pcert_path = cert->certificate_path;
+    *pkey_path = cert->key_path;
 
     return 0;
 }
