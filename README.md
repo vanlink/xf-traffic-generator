@@ -3,10 +3,11 @@ A network traffic generator based on dpdk and lwip.
 
 ## compile
 ```shell
-export MBEDTLS_SDK=/usr/src/mbedtls-2.25.0
-export DKFW_SDK=/usr/src/dpdk-frame-new
-export LWIP_SDK=/usr/src/lwip_dpdk/src
+export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig
+export DKFW_SDK=/usr/src/git/dpdk_framework/lib
+export LWIP_SDK=/usr/src/git/lwip_dpdk/src
 export OPENSSL_SDK=/usr/src/openssl-1.1.1w
+export MBEDTLS_SDK=/usr/src/mbedtls-2.25.0
 export EXTRA_CFLAGS=-fPIC
 ```
 DKFW_SDK can be found here: https://github.com/vanlink/dpdk_framework
