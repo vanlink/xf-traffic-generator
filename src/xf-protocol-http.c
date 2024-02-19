@@ -390,8 +390,9 @@ static void init_stream_cps_one_core(STREAM *stream, int is_simuser, int core_in
 
     dkfw_cps_create(cpsinfo, tsc_per_sec);
 
+    cpsinfo->cps_segs[0].cps_start = value;
     cpsinfo->cps_segs[0].cps_end = value;
-    cpsinfo->cps_segs[0].seg_total_ms = 30000;
+    cpsinfo->cps_segs[0].seg_total_ms = 0;
     cpsinfo->cps_segs[1].cps_start = value;
 
     if(is_simuser && value){
@@ -514,22 +515,29 @@ static int init_stream_cps_array(cJSON *json_root, STREAM *stream, int is_simuse
 static int init_stream_cps(cJSON *json, STREAM *stream, int is_simuser)
 {
     int i;
-    uint64_t value, cps;
+    uint64_t value, cps = 1;
 
-    if(json->type == cJSON_Number){
-        cps = json->valueint;
-        cps = cps ? cps : 1;
+    if(json){
+        if(json->type == cJSON_Number){
+            cps = json->valueint;
+            cps = cps ? cps : 1;
+            for(i=0;i<g_lwip_core_cnt;i++){
+                value = get_per_core_value(cps, i);
+                init_stream_cps_one_core(stream, is_simuser, i, value);
+            }
+        }else if(json->type == cJSON_Array){
+            if(init_stream_cps_array(json, stream, is_simuser) < 0){
+                return -1;
+            }
+        }else{
+            printf("cps/simuser invalid.\n");
+            return -1;
+        }
+    }else{
         for(i=0;i<g_lwip_core_cnt;i++){
             value = get_per_core_value(cps, i);
             init_stream_cps_one_core(stream, is_simuser, i, value);
         }
-    }else if(json->type == cJSON_Array){
-        if(init_stream_cps_array(json, stream, is_simuser) < 0){
-            return -1;
-        }
-    }else{
-        printf("cps/simuser invalid.\n");
-        return -1;
     }
 
     return 0;
@@ -541,9 +549,18 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     cJSON *json;
     int is_simuser = 0;
 
-    stream->local_address_ind = cJSON_GetObjectItem(json_root, "local_address_ind")->valueint;
-    stream->remote_address_ind = cJSON_GetObjectItem(json_root, "remote_address_ind")->valueint;
-    stream->http_message_ind = cJSON_GetObjectItem(json_root, "http_message_ind")->valueint;
+    json = cJSON_GetObjectItem(json_root, "local_address_ind");
+    if(json){
+        stream->local_address_ind = json->valueint;
+    }
+    json = cJSON_GetObjectItem(json_root, "remote_address_ind");
+    if(json){
+        stream->remote_address_ind = json->valueint;
+    }
+    json = cJSON_GetObjectItem(json_root, "http_message_ind");
+    if(json){
+        stream->http_message_ind = json->valueint;
+    }
 
     a = !!local_address_pool_is_ipv6(stream->local_address_ind);
     b = !!remote_address_pool_is_ipv6(stream->remote_address_ind);
@@ -588,9 +605,6 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
         json = cJSON_GetObjectItem(json_root, "simuser");
         if(json){
             is_simuser = 1;
-        }else{
-            printf("cps/simuser required.\n");
-            return -1;
         }
     }
     stream->stream_is_simuser = is_simuser;
@@ -619,10 +633,24 @@ int init_stream_http_server(cJSON *json_root, STREAM *stream)
 {
     struct in6_addr start6;
     uint32_t start;
+    cJSON *json;
 
-    stream->http_message_ind = cJSON_GetObjectItem(json_root, "http_message_ind")->valueint;
-    strcpy(stream->listen_ip, cJSON_GetObjectItem(json_root, "listen_ip")->valuestring);
-    stream->listen_port = cJSON_GetObjectItem(json_root, "listen_port")->valueint;
+    json = cJSON_GetObjectItem(json_root, "http_message_ind");
+    if(json){
+        stream->http_message_ind = json->valueint;
+    }
+    json = cJSON_GetObjectItem(json_root, "listen_port");
+    if(json){
+        stream->listen_port = json->valueint;
+    }else{
+        stream->listen_port = stream->stream_is_tls ? 443 : 80;
+    }
+    json = cJSON_GetObjectItem(json_root, "listen_ip");
+    if(json){
+        strcpy(stream->listen_ip, json->valuestring);
+    }else{
+        strcpy(stream->listen_ip, "0.0.0.0");
+    }
 
     if(!str_to_ipv4(stream->listen_ip, &start)){
         stream->listen_net_if = lwip_get_netif_from_ipv4(rte_bswap32(start));

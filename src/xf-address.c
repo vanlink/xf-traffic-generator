@@ -216,12 +216,13 @@ int init_addresses(cJSON *json_root)
     cJSON *json_addresses;
     cJSON *json_array_item;
     cJSON *json_address_one;
+    cJSON *json;
     int ind = 0, i;
     ADDRESS_LOCAL *local_address;
     ADDRESS_LOCAL_ONE *local_address_one;
     ADDRESS_REMOTE *remote_address;
     ADDRESS_REMOTE_ONE *remote_address_one;
-    char *str;
+    char *str = "ip-rr";
     char *val_string;
     struct in6_addr start6;
     uint32_t start;
@@ -235,7 +236,10 @@ int init_addresses(cJSON *json_root)
             return -1;
         }
 
-        str = cJSON_GetObjectItem(json_array_item, "type")->valuestring;
+        json = cJSON_GetObjectItem(json_array_item, "type");
+        if(json){
+            str = json->valuestring;
+        }
         if(strstr(str, "port")){
             local_address->type = LOCAL_ADDRESS_TYPE_PORT_RR;
         }else{

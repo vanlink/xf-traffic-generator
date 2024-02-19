@@ -168,7 +168,7 @@ int init_streams(cJSON *json_root)
     cJSON *json_stream;
     cJSON *json_array_item;
     STREAM *stream;
-    char *str;
+    char *str = "httpclient";
     cJSON *json;
 
     memset(g_streams, 0, sizeof(g_streams));
@@ -195,11 +195,9 @@ int init_streams(cJSON *json_root)
         }
 
         json = cJSON_GetObjectItem(json_array_item, "type");
-        if(!json){
-            printf("stream type req.\n");
-            return -1;
+        if(json){
+            str = json->valuestring;
         }
-        str = json->valuestring;
         if(strstr(str, "httpclient")){
             stream->type = STREAM_TYPE_HTTPCLIENT;
             if(stream->stream_is_tls){
@@ -227,6 +225,11 @@ int init_streams(cJSON *json_root)
 
         g_streams[g_stream_cnt] = stream;
         g_stream_cnt++;
+    }
+
+    if(!g_stream_cnt){
+        printf("No streams in config file.\n");
+        return -1;
     }
 
     g_generator_shared_mem->streams_cnt = g_stream_cnt;

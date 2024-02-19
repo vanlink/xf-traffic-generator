@@ -148,6 +148,16 @@ static int init_lwip_json(cJSON *json_root, void *stats_mem)
 
     conf.lwip_core_cnt = g_pkt_process_core_num;
 
+    conf.mempool_static_obj_cnt[MEMP_ALTCP_PCB] = 4096;
+    conf.mempool_static_obj_cnt[MEMP_TCP_PCB_LISTEN] = 4096;
+    conf.mempool_static_obj_cnt[MEMP_TCP_PCB] = 4096;
+    conf.mempool_static_obj_cnt[MEMP_TCP_SEG] = 8192;
+    conf.mempool_static_obj_cnt[MEMP_ARP_QUEUE] = 4096;
+    conf.mempool_static_obj_cnt[MEMP_ND6_QUEUE] = 4096;
+    conf.mempool_static_obj_cnt[MEMP_PBUF_POOL] = 8192;
+    conf.mempool_static_obj_cnt[MEMP_PBUF] = 8192;
+    conf.mempool_static_obj_cnt[MEMP_SYS_TIMEOUT] = 2048;
+
     json_item = cJSON_GetObjectItem(json_root, "mem_static_pools");
     if(json_item){
         if((json_item_1 = cJSON_GetObjectItem(json_item, "pcb-altcp"))){
@@ -187,6 +197,19 @@ static int init_lwip_json(cJSON *json_root, void *stats_mem)
             conf.mempool_steps[i].obj_cnt = cJSON_GetObjectItem(json_item_1, "cnt")->valueint;
             i++;
         }
+    }else{
+        conf.mempool_steps[0].obj_size = 2048;
+        conf.mempool_steps[0].obj_cnt = 16384;
+        conf.mempool_steps[1].obj_size = 4096;
+        conf.mempool_steps[1].obj_cnt = 8192;
+        conf.mempool_steps[2].obj_size = 8192;
+        conf.mempool_steps[2].obj_cnt = 4096;
+        conf.mempool_steps[3].obj_size = 16384;
+        conf.mempool_steps[3].obj_cnt = 2048;
+        conf.mempool_steps[4].obj_size = 32768;
+        conf.mempool_steps[4].obj_cnt = 2048;
+        conf.mempool_steps[5].obj_size = 65536;
+        conf.mempool_steps[5].obj_cnt = 2048;
     }
 
     conf.stats_mem_addr = stats_mem;
@@ -884,7 +907,8 @@ int main(int argc, char **argv)
 
     init_generator_profile(g_generator_shared_mem);
 
-    if(init_sessions(cJSON_GetObjectItem(json_root, "sessions")->valueint) < 0){
+    json_item = cJSON_GetObjectItem(json_root, "sessions");
+    if(init_sessions(json_item ? json_item->valueint : 4096) < 0){
         ret = -1;
         goto err;
     }

@@ -66,28 +66,28 @@ def fill_conf_json(confjson):
     if simusercnt:
         cpsall += 1000000 * 105 // 100
 
-    stpool = confjson.setdefault("mem_static_pools", {})
-    stpool.setdefault("pcb-altcp", concurrall)
-    stpool.setdefault("pcb-tcp", concurrall + 2 * cpsall)  # 2msl * cps
-    stpool.setdefault("tcp-seg", 16384)
-    stpool.setdefault("pbuf", 16384)
-    stpool.setdefault("pbuf-pool", 4096)
-    stpool.setdefault("pcb-tcp-listen", 4096)
-    stpool.setdefault("arp-q", 2048)
-    stpool.setdefault("nd6-q", 2048)
-    stpool.setdefault("sys-timeout", 2048)
+    #stpool = confjson.setdefault("mem_static_pools", {})
+    #stpool.setdefault("pcb-altcp", concurrall)
+    #stpool.setdefault("pcb-tcp", concurrall + 2 * cpsall)  # 2msl * cps
+    #stpool.setdefault("tcp-seg", 16384)
+    #stpool.setdefault("pbuf", 16384)
+    #stpool.setdefault("pbuf-pool", 4096)
+    #stpool.setdefault("pcb-tcp-listen", 4096)
+    #stpool.setdefault("arp-q", 2048)
+    #stpool.setdefault("nd6-q", 2048)
+    #stpool.setdefault("sys-timeout", 2048)
 
-    confjson.setdefault("sessions", concurrall)
+    #confjson.setdefault("sessions", concurrall)
 
-    if "mem_step_pools" not in confjson:
-        confjson["mem_step_pools"] = [
-            {"size":2048, "cnt":16384},
-            {"size":4096, "cnt":4096},
-            {"size":8192, "cnt":2048},
-            {"size":16384, "cnt":1024},
-            {"size":32768, "cnt":512},
-            {"size":65536, "cnt":256}
-        ]
+    #if "mem_step_pools" not in confjson:
+        #confjson["mem_step_pools"] = [
+            #{"size":2048, "cnt":16384},
+            #{"size":4096, "cnt":4096},
+            #{"size":8192, "cnt":2048},
+            #{"size":16384, "cnt":1024},
+            #{"size":32768, "cnt":512},
+            #{"size":65536, "cnt":256}
+        #]
 
 # ------------------------------ main ------------------------------
 if __name__ != '__main__':

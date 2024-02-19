@@ -29,6 +29,9 @@ typedef struct _PROTOCOL_HTTP_MSG_t {
 
 static PROTOCOL_HTTP_MSG *http_message_pools[MSG_POOLS_MAX];
 
+static char *http_msg_req = "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nUser-Agent: xf-traffic-generator\r\nAccept: */*\r\n\r\n";
+static char *http_msg_rsp = "HTTP/1.1 200 OK\r\nServer: xf-traffic-generator\r\nContent-Type: text/html\r\nContent-Length: 18\r\n\r\n<html>hello</html>";
+
 int init_protocol_http_msg(cJSON *json_root)
 {
     cJSON *json_messages = cJSON_GetObjectItem(json_root, "http_messages");
@@ -74,6 +77,50 @@ int init_protocol_http_msg(cJSON *json_root)
                 return -1;
             }
         }
+    }
+
+    if(!ind){
+        msg = rte_zmalloc(NULL, sizeof(PROTOCOL_HTTP_MSG), 0);
+        if(!msg){
+            printf("init http_msg mem error.\n");
+            return -1;
+        }
+        http_message_pools[0] = msg;
+        msg_one = &msg->messages[0];
+        msg_one->len = strlen(http_msg_req);
+        msg_one->msg = rte_malloc(NULL, msg_one->len + 1, 0);
+        if(!msg_one->msg){
+            printf("failed to load http msg.\n");
+            return -1;
+        }
+        strcpy(msg_one->msg, http_msg_req);
+        msg_one->msg_iova = rte_malloc_virt2iova(msg_one->msg);
+        if(msg_one->msg_iova == RTE_BAD_IOVA){
+            printf("failed to load http msg iova.\n");
+            return -1;
+        }
+        msg->message_cnt = 1;
+
+        msg = rte_zmalloc(NULL, sizeof(PROTOCOL_HTTP_MSG), 0);
+        if(!msg){
+            printf("init http_msg mem error.\n");
+            return -1;
+        }
+        http_message_pools[1] = msg;
+        msg_one = &msg->messages[0];
+        msg_one->len = strlen(http_msg_rsp);
+        msg_one->msg = rte_malloc(NULL, msg_one->len + 1, 0);
+        if(!msg_one->msg){
+            printf("failed to load http msg.\n");
+            return -1;
+        }
+        strcpy(msg_one->msg, http_msg_rsp);
+        msg_one->msg_iova = rte_malloc_virt2iova(msg_one->msg);
+        if(msg_one->msg_iova == RTE_BAD_IOVA){
+            printf("failed to load http msg iova.\n");
+            return -1;
+        }
+        msg->message_cnt = 1;
     }
 
     return 0;

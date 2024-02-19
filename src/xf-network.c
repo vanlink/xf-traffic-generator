@@ -481,6 +481,11 @@ int init_networks(cJSON *json_root)
         return -1;
     }
 
+    if(!json_networks){
+        printf("No networks found in config file.\n");
+        return -1;
+    }
+
     cJSON_ArrayForEach(json_array_item, json_networks){
 
         interface_ind = cJSON_GetObjectItem(json_array_item, "interface_ind")->valueint;
