@@ -25,7 +25,7 @@ static void get_pcap_name(int seq, char *buff)
 int init_capture(cJSON *json_root)
 {
     int i;
-    char buff[128];
+    char buff[256];
     cJSON *json;
 
     json = cJSON_GetObjectItem(json_root, "capture");

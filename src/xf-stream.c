@@ -103,6 +103,9 @@ static int init_streams_tls_ciphersuites(STREAM *stream, cJSON *json_root)
         }
         stream->tls_ciphersuites[ind] = cs->id;
     }
+#else
+    (void)stream;
+    (void)json_root;
 #endif
     return 0;
 }
