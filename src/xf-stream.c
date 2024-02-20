@@ -135,12 +135,7 @@ static int init_streams_tls_server(STREAM *stream, cJSON *json_root)
     int key_len;
     char *password;
 
-    if(!json){
-        printf("certificate_ind req.\n");
-        return -1;
-    }
-
-    if(certificate_get(json->valueint, &cert, &cert_len, &key, &key_len, &password, &certpath, &keypath) < 0){
+    if(certificate_get(json ? json->valueint : 0, &cert, &cert_len, &key, &key_len, &password, &certpath, &keypath) < 0){
         printf("certificate_ind get err.\n");
         return -1;
     }
