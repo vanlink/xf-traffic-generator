@@ -71,7 +71,6 @@ typedef struct _STREAM_t {
     int stream_is_tls;
     struct altcp_tls_config *tls_client_config;
     struct altcp_tls_config *tls_server_config;
-    int tls_ciphersuites[256];
 
     char listen_ip[64];
     struct netif *listen_net_if;

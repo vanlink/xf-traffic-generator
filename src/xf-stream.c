@@ -24,10 +24,6 @@
 
 #include "cjson/cJSON.h"
 
-#if LWIP_ALTCP_TLS_MBEDTLS
-#include "mbedtls/ssl_ciphersuites.h"
-#endif
-
 #include "lwip/arch.h"
 #include "lwip/init.h"
 #include "lwip/timeouts.h"
@@ -75,49 +71,13 @@ static int init_stream_stats(DKFW_STATS *stats)
     return 0;
 }
 
-static int init_streams_tls_ciphersuites(STREAM *stream, cJSON *json_root)
-{
-#if LWIP_ALTCP_TLS_MBEDTLS
-    cJSON *json_array_item;
-    const mbedtls_ssl_ciphersuite_t *cs;
-    int ind = 0;
-
-    json_root = cJSON_GetObjectItem(json_root, "ciphersuites");
-    if(json_root){
-        cJSON_ArrayForEach(json_array_item, json_root){
-            cs = mbedtls_ssl_ciphersuite_from_string(json_array_item->valuestring);
-            if(!cs){
-                printf("invalid ciphersuite [%s].\n", json_array_item->valuestring);
-                return -1;
-            }
-            stream->tls_ciphersuites[ind] = cs->id;
-            ind++;
-        }
-    }
-
-    if(!ind){
-        cs = mbedtls_ssl_ciphersuite_from_string("TLS-RSA-WITH-AES-256-CBC-SHA256");
-        if(!cs){
-            printf("invalid ciphersuite [].\n");
-            return -1;
-        }
-        stream->tls_ciphersuites[ind] = cs->id;
-    }
-#else
-    (void)stream;
-    (void)json_root;
-#endif
-    return 0;
-}
-
 static int init_streams_tls_client(STREAM *stream, cJSON *json_root)
 {
+    (void)json_root;
+
     stream->tls_client_config = altcp_tls_create_config_client(NULL, 0);
     if(!stream->tls_client_config){
         printf("create ssl client config fail.\n");
-        return -1;
-    }
-    if(init_streams_tls_ciphersuites(stream, json_root) < 0){
         return -1;
     }
 
@@ -146,10 +106,6 @@ static int init_streams_tls_server(STREAM *stream, cJSON *json_root)
 
     if(!stream->tls_server_config){
         printf("create ssl server config fail.\n");
-        return -1;
-    }
-
-    if(init_streams_tls_ciphersuites(stream, json_root) < 0){
         return -1;
     }
 
