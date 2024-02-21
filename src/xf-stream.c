@@ -120,9 +120,7 @@ static int init_streams_tls_client(STREAM *stream, cJSON *json_root)
     if(init_streams_tls_ciphersuites(stream, json_root) < 0){
         return -1;
     }
-#if LWIP_ALTCP_TLS_MBEDTLS
-    altcp_tls_ssl_conf_ciphersuites(stream->tls_client_config, stream->tls_ciphersuites);
-#endif
+
     return 0;
 }
 
@@ -155,9 +153,6 @@ static int init_streams_tls_server(STREAM *stream, cJSON *json_root)
         return -1;
     }
 
-#if LWIP_ALTCP_TLS_MBEDTLS
-    altcp_tls_ssl_conf_ciphersuites(stream->tls_server_config, stream->tls_ciphersuites);
-#endif
     return 0;
 }
 
