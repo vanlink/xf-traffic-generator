@@ -73,9 +73,12 @@ static int init_stream_stats(DKFW_STATS *stats)
 
 static int init_streams_tls_client(STREAM *stream, cJSON *json_root)
 {
-    (void)json_root;
+    cJSON *json = cJSON_GetObjectItem(json_root, "tlsconf");
 
-    stream->tls_client_config = altcp_tls_create_config_client(NULL, 0);
+    if(json){
+        stream->tls_client_config = altcp_tls_create_config_client((const u8_t *)json->valuestring, 0);
+    }
+
     if(!stream->tls_client_config){
         printf("create ssl client config fail.\n");
         return -1;
@@ -93,16 +96,18 @@ static int init_streams_tls_server(STREAM *stream, cJSON *json_root)
     int key_len;
     char *password;
 
-    if(certificate_get(json ? json->valueint : 0, &cert, &cert_len, &key, &key_len, &password, &certpath, &keypath) < 0){
-        printf("certificate_ind get err.\n");
-        return -1;
+    if(json){
+        if(certificate_get(json->valueint, &cert, &cert_len, &key, &key_len, &password, &certpath, &keypath) < 0){
+            printf("certificate_ind get err.\n");
+            return -1;
+        }
+        stream->tls_server_config = altcp_tls_create_config_server_privkey_cert((u8_t *)keypath, 0, NULL, 0, (u8_t *)certpath, 0);
+    }else{
+        json = cJSON_GetObjectItem(json_root, "tlsconf");
+        if(json){
+            stream->tls_server_config = altcp_tls_create_config_server_privkey_cert(NULL, 0, NULL, 0, (u8_t *)json->valuestring, 0);
+        }
     }
-
-#if LWIP_ALTCP_TLS_MBEDTLS
-    stream->tls_server_config = altcp_tls_create_config_server_privkey_cert((u8_t *)key, key_len + 1, NULL, 0, (u8_t *)cert, cert_len + 1);
-#else
-    stream->tls_server_config = altcp_tls_create_config_server_privkey_cert((u8_t *)keypath, 0, NULL, 0, (u8_t *)certpath, 0);
-#endif
 
     if(!stream->tls_server_config){
         printf("create ssl server config fail.\n");
