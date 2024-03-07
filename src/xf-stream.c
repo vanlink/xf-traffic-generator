@@ -75,9 +75,7 @@ static int init_streams_tls_client(STREAM *stream, cJSON *json_root)
 {
     cJSON *json = cJSON_GetObjectItem(json_root, "tlsconf");
 
-    if(json){
-        stream->tls_client_config = altcp_tls_create_config_client((const u8_t *)json->valuestring, 0);
-    }
+    stream->tls_client_config = altcp_tls_create_config_client(json ? (const u8_t *)json->valuestring : NULL, 0);
 
     if(!stream->tls_client_config){
         printf("create ssl client config fail.\n");
