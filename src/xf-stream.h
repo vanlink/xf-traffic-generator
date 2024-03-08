@@ -18,6 +18,9 @@
 #define STREAM_TYPE_HTTPCLIENT 0
 #define STREAM_TYPE_HTTPSERVER 1
 
+#define STREAM_TLS_TYPE_TLS 1
+#define STREAM_TLS_TYPE_CNTLS 2
+
 enum {
     STREAM_STATS_TCP_CONN_ATTEMP,
     STREAM_STATS_TCP_CONN_SUCC,
@@ -68,7 +71,7 @@ typedef struct _STREAM_t {
     int stream_is_ipv6;
     int close_with_rst;
 
-    int stream_is_tls;
+    int stream_is_tls; // STREAM_TLS_TYPE_
     struct altcp_tls_config *tls_client_config;
     struct altcp_tls_config *tls_server_config;
 
