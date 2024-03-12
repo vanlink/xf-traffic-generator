@@ -112,6 +112,15 @@ static void cb_err(void *arg, err_t err)
     stream->stream_err(session, stream);
 }
 
+static void cb_destroyed(void *arg)
+{
+    SESSION *session = (SESSION *)arg;
+    STREAM *stream = session->stream;
+
+    (void)stream;
+
+}
+
 static err_t cb_accept(void *arg, struct altcp_pcb *pcb, err_t err)
 {
     STREAM *stream = (STREAM *)arg;
@@ -204,6 +213,9 @@ int protocol_common_send_one(STREAM *stream, int core, uint32_t simuser_ind)
     altcp_recv(newpcb, cb_recv);
     altcp_poll(newpcb, NULL, 10U);
     altcp_err(newpcb, cb_err);
+    if(stream->stream_is_simuser){
+        altcp_destroyed(newpcb, cb_destroyed);
+    }
 
     stream->stream_session_new(session, stream, newpcb);
     remote_addr = remote_address_get(stream->remote_address_ind, core, &port);
