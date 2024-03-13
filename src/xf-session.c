@@ -86,6 +86,7 @@ SESSION *session_get(void)
 
 void session_free(SESSION *sess)
 {
+    sess->session_freed = 1;
     GENERATOR_STATS_RESPOOL_FREE(GENERATOR_STATS_SESSION);
     rte_mempool_put(sessions[LWIP_MY_CPUID], sess);
 }

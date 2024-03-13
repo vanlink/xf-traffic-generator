@@ -54,6 +54,18 @@ static void http_session_msg_next(SESSION *session, STREAM *stream)
 
 static int http_close_session(SESSION *session, struct altcp_pcb *pcb, int abort)
 {
+    if(session->timer_msg_interval_onfly){
+        dkfw_stop_timer(&session->timer_msg_interval);
+        session->timer_msg_interval_onfly = 0;
+        GENERATOR_STATS_PAIR_STOP_INC(GENERATOR_STATS_TIMER_MSG_INTERVAL);
+    }
+
+    if(session->timer_session_timeout_onfly){
+        dkfw_stop_timer(&session->timer_session_timeout);
+        session->timer_session_timeout_onfly = 0;
+        GENERATOR_STATS_PAIR_STOP_INC(GENERATOR_STATS_TIMER_SESSION_TIMEOUT);
+    }
+
     if(pcb) {
         altcp_sent(pcb, NULL);
         altcp_recv(pcb, NULL);
@@ -66,18 +78,6 @@ static int http_close_session(SESSION *session, struct altcp_pcb *pcb, int abort
                 altcp_abort(pcb);
             }
         }
-    }
-
-    if(session->timer_msg_interval_onfly){
-        dkfw_stop_timer(&session->timer_msg_interval);
-        session->timer_msg_interval_onfly = 0;
-        GENERATOR_STATS_PAIR_STOP_INC(GENERATOR_STATS_TIMER_MSG_INTERVAL);
-    }
-
-    if(session->timer_session_timeout_onfly){
-        dkfw_stop_timer(&session->timer_session_timeout);
-        session->timer_session_timeout_onfly = 0;
-        GENERATOR_STATS_PAIR_STOP_INC(GENERATOR_STATS_TIMER_SESSION_TIMEOUT);
     }
 
     return 0;
@@ -302,9 +302,13 @@ static int protocol_http_client_err(SESSION *session, STREAM *stream)
 static int protocol_http_client_destroyed(SESSION *session, STREAM *stream)
 {
 
-    simuser_attemp(stream, &stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
+    if(stream && stream->stream_is_simuser){
+        simuser_attemp(stream, &stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
+    }
 
-    session_free(session);
+    if(session){
+        session_free(session);
+    }
 
     return 0;
 }
@@ -368,7 +372,9 @@ static int protocol_http_server_destroyed(SESSION *session, STREAM *stream)
 {
     (void)stream;
 
-    session_free(session);
+    if(session){
+        session_free(session);
+    }
 
     return 0;
 }

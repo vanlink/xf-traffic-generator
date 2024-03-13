@@ -9,13 +9,14 @@ typedef struct _session_info_t {
     void *pcb;
     void *stream;
 
-    uint32_t proto_state :4,
+    uint32_t session_freed:1,
+             proto_state :4,
              msg_ind     :7,
              response_ok :1,
              msgs_left   :8,
              timer_msg_interval_onfly    :1,
              timer_session_timeout_onfly :1,
-             spare1      :10;
+             spare1      :9;
 
     uint32_t simuser_ind;
 
