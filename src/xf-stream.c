@@ -193,10 +193,6 @@ static int stream_stop_one(STREAM *stream)
 {
     if(stream->stream_send_back && stream->stream_send){
         stream->stream_send = NULL;
-
-        if(stream->stream_is_simuser){
-            
-        }
     }
 
     return 0;

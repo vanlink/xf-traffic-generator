@@ -29,7 +29,6 @@ typedef struct _SIMUSER_t {
 extern int simuser_start(STREAM *stream, SIMUSER *simuser, int core);
 extern int simuser_stop(SIMUSER *simuser);
 extern int simuser_attemp(STREAM *stream, SIMUSER *simuser, int core);
-extern int simuser_delayed_attemp(SIMUSER *simuser, int core);
 
 #endif
 

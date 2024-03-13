@@ -49,6 +49,7 @@ typedef int (*STREAM_SENT_FUNC)(SESSION *, STREAM *, void *pcb, uint16_t);
 typedef int (*STREAM_REMOTE_CLOSE_FUNC)(SESSION *, STREAM *, void *pcb);
 typedef int (*STREAM_RECV_FUNC)(SESSION *, STREAM *, void *pcb, char *data, int datalen);
 typedef int (*STREAM_ERR_FUNC)(SESSION *, STREAM *);
+typedef int (*STREAM_DESTROYED_FUNC)(SESSION *, STREAM *);
 
 typedef struct _STREAM_CORE_t {
     SIMUSER *simusers;
@@ -95,6 +96,7 @@ typedef struct _STREAM_t {
     STREAM_RECV_FUNC stream_recv;
     STREAM_ERR_FUNC stream_err;
     STREAM_LISTEN_FUNC stream_listen;
+    STREAM_DESTROYED_FUNC stream_destroyed;
 
     STREAM_CORE stream_cores[MAX_CORES_PER_ROLE];
 } STREAM;

@@ -70,15 +70,15 @@ static int http_close_session(SESSION *session, struct altcp_pcb *pcb, int abort
 
     if(session->timer_msg_interval_onfly){
         dkfw_stop_timer(&session->timer_msg_interval);
+        session->timer_msg_interval_onfly = 0;
         GENERATOR_STATS_PAIR_STOP_INC(GENERATOR_STATS_TIMER_MSG_INTERVAL);
     }
 
     if(session->timer_session_timeout_onfly){
         dkfw_stop_timer(&session->timer_session_timeout);
+        session->timer_session_timeout_onfly = 0;
         GENERATOR_STATS_PAIR_STOP_INC(GENERATOR_STATS_TIMER_SESSION_TIMEOUT);
     }
-
-    session_free(session);
 
     return 0;
 }
@@ -154,15 +154,9 @@ static int http_client_next_msg_check(SESSION *session, STREAM *stream, void *pc
         if(http_client_send_data(session, stream, pcb) < 0){
             STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
             http_close_session(session, pcb, 1);
-            if(stream->stream_is_simuser){
-                simuser_delayed_attemp(&stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
-            }
             return -1;
         }
     }else{
-        if(stream->stream_is_simuser){
-            simuser_attemp(stream, &stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
-        }
         http_close_session(session, pcb, stream->close_with_rst);
         STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
         if(stream->close_with_rst){
@@ -225,10 +219,6 @@ static void timer_func_session_timeout(struct timer_list *timer, unsigned long a
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_SESSION_TIMEOUT);
 
-    if(stream->stream_is_simuser){
-        simuser_delayed_attemp(&stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
-    }
-
     http_close_session(session, pcb, 1);
 
     STREAM_STATS_NUM_INC(stream, STREAM_STATS_TCP_CLOSE_LOCAL);
@@ -270,9 +260,6 @@ static int protocol_http_client_sent(SESSION *session, STREAM *stream, void *pcb
 
 static int protocol_http_client_remote_close(SESSION *session, STREAM *stream, void *pcb)
 {
-    if(stream->stream_is_simuser){
-        simuser_delayed_attemp(&stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
-    }
 
     http_close_session(session, pcb, stream->close_with_rst);
 
@@ -307,11 +294,18 @@ static int protocol_http_client_recv(SESSION *session, STREAM *stream, void *pcb
 
 static int protocol_http_client_err(SESSION *session, STREAM *stream)
 {
-    if(stream->stream_is_simuser){
-        simuser_delayed_attemp(&stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
-    }
-
+    (void)stream;
     http_close_session(session, NULL, 0);
+    return 0;
+}
+
+static int protocol_http_client_destroyed(SESSION *session, STREAM *stream)
+{
+
+    simuser_attemp(stream, &stream->stream_cores[LWIP_MY_CPUID].simusers[session->simuser_ind], LWIP_MY_CPUID);
+
+    session_free(session);
+
     return 0;
 }
 
@@ -367,6 +361,15 @@ static int protocol_http_server_err(SESSION *session, STREAM *stream)
     (void)stream;
 
     http_close_session(session, NULL, 0);
+    return 0;
+}
+
+static int protocol_http_server_destroyed(SESSION *session, STREAM *stream)
+{
+    (void)stream;
+
+    session_free(session);
+
     return 0;
 }
 
@@ -625,6 +628,7 @@ int init_stream_http_client(cJSON *json_root, STREAM *stream)
     stream->stream_recv = protocol_http_client_recv;
     stream->stream_remote_close = protocol_http_client_remote_close;
     stream->stream_err = protocol_http_client_err;
+    stream->stream_destroyed = protocol_http_client_destroyed;
 
     return 0;
 }
@@ -676,6 +680,7 @@ int init_stream_http_server(cJSON *json_root, STREAM *stream)
     stream->stream_recv = protocol_http_server_recv;
     stream->stream_remote_close = protocol_http_server_remote_close;
     stream->stream_err = protocol_http_server_err;
+    stream->stream_destroyed = protocol_http_server_destroyed;
 
     return 0;
 }

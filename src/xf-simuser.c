@@ -51,21 +51,6 @@ int simuser_attemp(STREAM *stream, SIMUSER *simuser, int core)
     return 0;
 }
 
-int simuser_delayed_attemp(SIMUSER *simuser, int core)
-{
-
-    if(simuser->simusr_state != SIMUSR_ST_RUNNING){
-        return 0;
-    }
-
-    if(!simuser->simusr_timer_onfly){
-        dkfw_start_timer(&g_generator_timer_bases[core], &simuser->simusr_timer, timer_func_simuser_restart, simuser, g_elapsed_ms + SIMUSER_FAIL_INTERVAL_MS);
-        simuser->simusr_timer_onfly = 1;
-    }
-
-    return 0;
-}
-
 int simuser_start(STREAM *stream, SIMUSER *simuser, int core)
 {
 
